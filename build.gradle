@@ -1,0 +1,6 @@
+plugins {
+    id 'base'
+}
+group = 'com.nstut'
+version = '0.1.0'
+tasks.register('testCore') { dependsOn ':core:test' }

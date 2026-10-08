@@ -1,0 +1,15 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+[[mods]]
+modId="packetweave"
+version="${mod_version}"
+displayName="PacketWeave"
+authors="NsTut"
+description='''A safe and bounded binary transfer engine for Minecraft mods.'''
+[[dependencies.packetweave]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"

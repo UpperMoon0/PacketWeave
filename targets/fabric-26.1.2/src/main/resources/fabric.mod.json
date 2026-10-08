@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "packetweave",
+  "version": "${mod_version}",
+  "name": "PacketWeave",
+  "description": "Secure, bounded data transfers for Minecraft mods.",
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.nstut.packetweave.fabric.PacketWeaveFabric"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "26.1.2",
+    "java": ">=25"
+  }
+}

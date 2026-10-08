@@ -1,0 +1,22 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+group = 'com.nstut'
+version = mod_version
+base { archivesName = 'packetweave-neoforge-26.1.2' }
+java { toolchain.languageVersion = JavaLanguageVersion.of(25); withSourcesJar() }
+sourceSets.main.java.srcDir file('../../core/src/main/java')
+neoForge {
+    version = project.neo_version
+    runs { client { client() }; server { server(); programArgument '--nogui' } }
+    mods { packetweave { sourceSet(sourceSets.main) } }
+}
+processResources {
+    def params = [mod_version: version]
+    inputs.properties params
+    filesMatching('META-INF/neoforge.mods.toml') { expand params }
+}
+tasks.withType(JavaCompile).configureEach { options.release = 25; options.encoding = 'UTF-8' }
+publishing { publications { mavenJava(MavenPublication) { artifactId = base.archivesName.get(); from components.java } } }

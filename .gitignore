@@ -1,0 +1,11 @@
+.gradle/
+**/.gradle/
+**/build/
+**/run/
+**/out/
+**/.idea/
+*.iml
+*.log
+.cache/
+.pytest_cache/
+__pycache__/
