@@ -6,6 +6,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** Loader-neutral outbound chunking. Consumers provide their own authenticated packet adapter. */
 public final class ChunkedTransfer {
@@ -35,12 +41,49 @@ public final class ChunkedTransfer {
     }
 
     public static void streamFile(Path file, int chunkBytes, Consumer consumer) throws IOException {
+        streamFile(file, chunkBytes, Integer.MAX_VALUE, consumer);
+    }
+
+    public static void streamFile(Path file, int chunkBytes, long byteLimit, Consumer consumer) throws IOException {
         Objects.requireNonNull(consumer, "consumer");
         long size = Files.size(file);
+        if (byteLimit <= 0 || size > byteLimit) throw new IOException("File exceeds receiver policy");
         int total = count(size, chunkBytes);
         try (InputStream input = Files.newInputStream(file)) {
             stream(input, size, chunkBytes, total, consumer);
         }
+    }
+
+    /**
+     * Backpressure for a worker streaming through a game-thread executor: only one dispatched
+     * chunk is outstanding per worker. Call the returned consumer from a different thread.
+     * This acknowledges local dispatch, not receipt by the remote peer.
+     */
+    public static Consumer onExecutor(Executor executor, Duration timeout, Consumer sink) {
+        Objects.requireNonNull(executor, "executor");
+        Objects.requireNonNull(sink, "sink");
+        if (timeout == null || timeout.isZero() || timeout.isNegative())
+            throw new IllegalArgumentException("Invalid dispatch timeout");
+        final long nanos = timeout.toNanos();
+        return (index, total, data) -> {
+            CompletableFuture<Void> dispatched = new CompletableFuture<>();
+            try {
+                executor.execute(() -> {
+                    if (dispatched.isDone()) return;
+                    try { sink.accept(index, total, data); dispatched.complete(null); }
+                    catch (Exception exception) { dispatched.completeExceptionally(exception); }
+                });
+                dispatched.get(nanos, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Transfer dispatch interrupted", exception);
+            } catch (ExecutionException | TimeoutException | RuntimeException exception) {
+                throw new IOException("Transfer dispatch failed", exception);
+            } finally {
+                // Prevent a timed-out task that has not started from sending stale chunks later.
+                dispatched.cancel(false);
+            }
+        };
     }
 
     // Fill each chunk even when an InputStream returns short reads; detect files changing mid-transfer.

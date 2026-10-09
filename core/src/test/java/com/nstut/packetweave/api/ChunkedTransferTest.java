@@ -98,4 +98,32 @@ class ChunkedTransferTest {
         assertThrows(IOException.class, () -> ChunkedTransfer.stream(new ByteArrayInputStream(bytes),4,4,1,(i,t,b)->{}));
         assertThrows(IllegalArgumentException.class, () -> ChunkedTransfer.send(new byte[0],4,(i,t,b)->{}));
     }
+
+    @Test void dispatchWaitsForConsumerAndPropagatesFailures() throws Exception {
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.List<Integer> received = new java.util.ArrayList<>();
+            ChunkedTransfer.send(new byte[]{1,2,3,4,5},4,
+                    ChunkedTransfer.onExecutor(executor, Duration.ofSeconds(5), (i,t,b) -> received.add(i)));
+            assertEquals(java.util.Arrays.asList(0,1), received);
+            assertThrows(IOException.class, () -> ChunkedTransfer.send(new byte[]{1},4,
+                    ChunkedTransfer.onExecutor(executor,Duration.ofSeconds(5),(i,t,b) -> { throw new IOException("disconnected"); })));
+        } finally { executor.shutdownNow(); }
+    }
+
+    @Test void timedOutDispatchDoesNotSendWhenExecutorLaterResumes() {
+        java.util.List<Runnable> pending = new java.util.ArrayList<>();
+        java.util.concurrent.atomic.AtomicBoolean sent = new java.util.concurrent.atomic.AtomicBoolean();
+        assertThrows(IOException.class, () -> ChunkedTransfer.send(new byte[]{1},4,
+                ChunkedTransfer.onExecutor(pending::add,Duration.ofMillis(1),(i,t,b) -> sent.set(true))));
+        assertEquals(1,pending.size());
+        pending.get(0).run();
+        assertFalse(sent.get());
+    }
+
+    @Test void trustedFileLimitIsCheckedWhenStreamOpens() throws Exception {
+        Path file = directory.resolve("oversize");
+        Files.write(file, new byte[]{1,2,3,4,5});
+        assertThrows(IOException.class, () -> ChunkedTransfer.streamFile(file,4,4,(i,t,b) -> fail("must not send")));
+    }
 }

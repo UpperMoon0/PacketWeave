@@ -39,7 +39,7 @@ Consumers can pin this repository as a Git submodule and compile `core/src/main/
 
 Use `beginBounded(id, totalChunks, trustedByteLimit)` only for legacy packets without an exact byte length. The receiver supplies the limit. `contains(id)` reaps expired state before metadata lookup; `clear()` releases all sessions on connection shutdown. Reject changed packet metadata and authorize every chunk in the adapter. Prefer `begin` when the wire protocol declares an exact length.
 
-`ChunkedTransfer.send` and `streamFile` emit nonempty chunks up to `CHUNK_BYTES`. Both reject empty files; streaming fills short reads and reports files that shrink or grow. Transport pacing and acknowledgements remain the adapter’s responsibility.
+`ChunkedTransfer.send` and `streamFile` emit nonempty chunks up to `CHUNK_BYTES`. Both reject empty files; streaming fills short reads and reports files that shrink or grow. Worker-to-game-thread dispatch can use `ChunkedTransfer.onExecutor` to bound outstanding chunks and abort stalled dispatch. This acknowledges local submission, not remote receipt; bandwidth pacing and remote acknowledgements remain the adapter’s responsibility.
 
 ## Developer example
 
