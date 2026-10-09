@@ -4,6 +4,8 @@ The pipeline follows the Simply Screens release flow: version change, verificati
 
 ## Configuration
 
+Use [`curseforge.md`](curseforge.md) as the CurseForge project description. It is maintained separately from each version's release changelog; the upload workflow does not update the project description.
+
 In GitHub repository **Settings → Secrets and variables → Actions**, add these when the CurseForge project is available:
 
 | Kind | Name | Value |
