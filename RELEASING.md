@@ -10,10 +10,12 @@ In GitHub repository **Settings → Secrets and variables → Actions**, add the
 
 | Kind | Name | Value |
 |---|---|---|
-| Repository variable | `CURSEFORGE_PROJECT_ID` | Numeric CurseForge project ID |
+| Repository variable | `CURSEFORGE_PROJECT_ID` | `1735096` (PacketWeave) |
 | Repository secret | `CURSEFORGE_API_TOKEN` | CurseForge upload API token |
 
 There is no placeholder or borrowed project ID. Without `CURSEFORGE_PROJECT_ID`, the external upload job is skipped and GitHub releases still work. Once the ID is configured, a missing token fails publishing rather than silently skipping it.
+
+PacketWeave's [CurseForge project](https://www.curseforge.com/minecraft/mc-mods/packetweave) has project ID **1735096**. The repository variable is configured; the upload token must be added as a repository secret before publishing. New projects remain unavailable publicly until CurseForge moderation approves them.
 
 GitHub releases use the workflow's built-in `GITHUB_TOKEN` with `contents: write` limited to the release job. No personal token is required.
 
