@@ -39,7 +39,7 @@ Consumers can pin this repository as a Git submodule and compile `core/src/main/
 
 Use `beginBounded(id, totalChunks, trustedByteLimit)` only for legacy packets without an exact byte length. The receiver supplies the limit. `contains(id)` reaps expired state before metadata lookup; `clear()` releases all sessions on connection shutdown. Reject changed packet metadata and authorize every chunk in the adapter. Prefer `begin` when the wire protocol declares an exact length.
 
-`ChunkedTransfer.send` and `streamFile` emit nonempty chunks up to `CHUNK_BYTES`. Both reject empty files; streaming fills short reads and reports files that shrink or grow. Worker-to-game-thread dispatch can use `ChunkedTransfer.onExecutor` to bound outstanding chunks and abort stalled dispatch. This acknowledges local submission, not remote receipt; bandwidth pacing and remote acknowledgements remain the adapter’s responsibility.
+`ChunkedTransfer.send` and `streamFile` emit nonempty chunks up to `CHUNK_BYTES`. Both reject empty files; streaming fills short reads and reports files that shrink or grow. Worker-to-game-thread dispatch can use `ChunkedTransfer.onExecutor` to bound outstanding chunks and abort stalled dispatch. This acknowledges local submission, not remote receipt; bandwidth pacing and remote acknowledgements remain the adapterâ€™s responsibility.
 
 ## Developer example
 
@@ -68,5 +68,13 @@ python tools/build_matrix.py build --all
 Use Java 17 to run the Gradle 8.x Forge builds, and Java 25 for newer Fabric and NeoForge builds. Each target Gradle build compiles classes to Java 8, 17, 21, or 25 as required.
 
 Every target has its own Gradle wrapper. Core and target builds are independent and do not require importing unrelated loader plugins. See `.github/workflows/ci.yml`.
+
+## Releases and publishing
+
+CI tests the core and release tooling, builds all eight targets, and checks the production jars' metadata, core classes and MIT license. PRs that change release configuration also run the complete release bundle dry run.
+
+Changing root `mod_version` on `main` triggers verified GitHub release assets and optional CurseForge uploads. Configure the repository variable `CURSEFORGE_PROJECT_ID` and secret `CURSEFORGE_API_TOKEN` when the listing is available. GitHub releases work while the project ID is unset; manual publishing on `main` can upload the same version after it is supplied.
+
+See [RELEASING.md](RELEASING.md) for version/changelog requirements, dry runs, publish receipts, and all required configuration.
 
 MIT licensed.

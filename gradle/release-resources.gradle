@@ -1,0 +1,7 @@
+// Each native target is an independent Gradle root project.
+processResources {
+    from(file('../../LICENSE')) {
+        into 'META-INF'
+        rename { 'LICENSE-PacketWeave' }
+    }
+}

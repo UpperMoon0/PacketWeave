@@ -23,3 +23,5 @@ processResources {
 }
 tasks.withType(JavaCompile).configureEach { options.release = 21; options.encoding = 'UTF-8' }
 publishing { publications { mavenJava(MavenPublication) { artifactId = base.archivesName.get(); from components.java } } }
+
+apply from: file('../../gradle/release-resources.gradle')
