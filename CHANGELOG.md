@@ -8,3 +8,5 @@
 - Add expiry-aware session lookup and connection-wide cleanup.
 - Test bounded legacy transfers, limits, sender parity, and cancellation.
 - Add release contracts, all-target packaging, source checksums, GitHub releases and configurable CurseForge publishing.
+- Include version-correct Forge resource-pack metadata so normal client startup does not stop at a missing-metadata warning.
+- Document standalone public-API consumption, required loader/CurseForge dependencies, and safe relocation requirements for optional private embedding.

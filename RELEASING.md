@@ -64,4 +64,8 @@ python tools/build_matrix.py build --all
 
 Gradle runtime requirements remain Java 17 for Forge and the core, and Java 25 for Fabric and NeoForge targets; native bytecode targets remain Java 8/17/21/25 according to Minecraft version.
 
-Loader entrypoints are still scaffolded. The release workflow verifies packaging and the functional transfer core; it does not certify a standalone PacketWeave native wire protocol or replace consuming mods' live networking tests.
+The loader mods expose the functional core API without registering an independent wire protocol. The release workflow verifies packaging and the core; it does not replace consuming mods' live networking tests.
+
+## Dependent release order
+
+Release PacketWeave 0.1.1 before Simply Screens 0.8.10. Verify all five native artifacts needed by Screens (Fabric/Forge 1.20.1, Fabric/NeoForge 1.21.1, NeoForge 26.1.2), successful upload receipts, and public CurseForge approval/download availability before publishing the dependent Screens files. An accepted upload or GitHub release does not establish CurseForge moderation status. Screens uses the standalone API, requires PacketWeave on both sides, and must not package duplicate core classes.

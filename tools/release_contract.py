@@ -100,6 +100,13 @@ def inspect_jar(jar: Path, target: str, version: str) -> None:
         entrypoint = {"fabric": "PacketWeaveFabric", "forge": "PacketWeaveForge", "neoforge": "PacketWeaveNeoForge"}[loader]
         if f"com/nstut/packetweave/{loader}/{entrypoint}.class" not in archive.namelist():
             raise ValueError(f"Missing loader entrypoint: {jar}")
+        if loader == "forge":
+            if "pack.mcmeta" not in archive.namelist():
+                raise ValueError(f"Missing Forge pack metadata: {jar}")
+            pack = json.loads(archive.read("pack.mcmeta")).get("pack", {})
+            expected_format = {"1.16.5": 6, "1.20.1": 15}[minecraft]
+            if pack.get("pack_format") != expected_format or not pack.get("description"):
+                raise ValueError(f"Incorrect Forge pack metadata: {jar}")
         if loader == "fabric":
             metadata = json.loads(archive.read("fabric.mod.json"))
             if metadata.get("icon") != icon_path:

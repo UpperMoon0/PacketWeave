@@ -46,6 +46,8 @@ class ReleaseTests(unittest.TestCase):
             loader, minecraft = target.split("-", 1)
             entrypoint = {"fabric": "PacketWeaveFabric", "forge": "PacketWeaveForge", "neoforge": "PacketWeaveNeoForge"}[loader]
             archive.writestr(f"com/nstut/packetweave/{loader}/{entrypoint}.class", b"fixture")
+            if loader == "forge":
+                archive.writestr("pack.mcmeta", json.dumps({"pack": {"pack_format": {"1.16.5": 6, "1.20.1": 15}[minecraft], "description": "PacketWeave resources"}}))
             if loader == "fabric":
                 archive.writestr("fabric.mod.json", json.dumps({"id": "packetweave", "version": version, "icon": "assets/packetweave/icon.png", "depends": {"minecraft": minecraft}}))
             else:
@@ -125,6 +127,22 @@ class ReleaseTests(unittest.TestCase):
             archive.writestr("com/nstut/packetweave/api/TransferRegistry.class", b"fixture")
         with self.assertRaisesRegex(ValueError, "Missing core classes or license"):
             release.inspect_jar(path, "forge-1.16.5", self.version)
+
+    def test_forge_pack_metadata_is_required_and_version_specific(self):
+        for target in ("forge-1.16.5", "forge-1.20.1"):
+            path = self.artifacts / f"packetweave-{target}" / release.filename(target, self.version)
+            with self.subTest(target=target):
+                release.inspect_jar(path, target, self.version)
+                with zipfile.ZipFile(path) as archive:
+                    entries = {name: archive.read(name) for name in archive.namelist() if name != "pack.mcmeta"}
+                for pack in (None, {"pack_format": 1, "description": "wrong version"}, {"pack_format": 6}):
+                    with zipfile.ZipFile(path, "w") as archive:
+                        for name, data in entries.items():
+                            archive.writestr(name, data)
+                        if pack is not None:
+                            archive.writestr("pack.mcmeta", json.dumps({"pack": pack}))
+                    with self.assertRaisesRegex(ValueError, "Forge pack metadata"):
+                        release.inspect_jar(path, target, self.version)
 
     def test_bundle_source_and_hash_drift_fail(self):
         directory = self.make_bundle()

@@ -13,7 +13,7 @@ PacketWeave is a shared library for Minecraft mods that transfer binary assets b
 
 ## Current status
 
-The transfer core is functional and is embedded by Simply Screens for its media transfers. PacketWeave's native loader entrypoints are currently scaffolds: installing the standalone mod does not register a network protocol or enable uploads by itself.
+The transfer core is functional. Simply Screens 0.8.10 requires the standalone PacketWeave 0.1.1+ mod on clients and dedicated servers and calls its public API for media transfers. PacketWeave supplies the library API; installing it by itself does not register a network protocol or enable uploads.
 
 Consuming mods supply their own native packets, authenticated sender identity, permissions, content validation, and media handling. PacketWeave manages the transfer state within that integration. It adds no blocks, items, or player-facing interface.
 
@@ -26,13 +26,13 @@ Consuming mods supply their own native packets, authenticated sender identity, p
 | 1.21.1 | Fabric, NeoForge |
 | 26.1.2 | Fabric, NeoForge |
 
-Choose a file matching your Minecraft version and loader. These are build targets; they do not imply a completed standalone networking integration.
+Choose the native mod file matching your Minecraft version and loader. Do not install the development-only core jar as a replacement. The mod adds no independent network protocol; consumers provide the game integration.
 
 ## For mod developers
 
-The core can be embedded in a consuming mod without installing a separate PacketWeave mod. Each native target also includes the core classes in its own JAR. PacketWeave does not require Architectury API or Fabric API.
+Compile against the public API, install the native PacketWeave runtime mod, and declare the required minimum version in loader metadata. Do not duplicate the public API classes inside a consuming mod. PacketWeave itself does not require Architectury API or Fabric API.
 
-See the [integration guide and API example](https://github.com/UpperMoon0/PacketWeave#embedded-core-integration) for embedding, transfer limits, and adapter responsibilities.
+See the [integration guide and API example](https://github.com/UpperMoon0/PacketWeave#runtime-library-integration) for runtime dependency declarations, transfer limits, and adapter responsibilities.
 
 ## Support and license
 

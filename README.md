@@ -29,13 +29,23 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 
 ### Scope and status
 
-**This initial version is a functional Java transfer core and native multi-platform build structure, not a completed networking release.** Fabric, Forge and NeoForge loader entrypoints are scaffolded, but do not yet register an on-wire transfer protocol. Future code must add native packet registration, server-client integration tests, backpressure, and disk staging. Do not claim that uploads or cross-loader networking work yet.
+**PacketWeave is a functional transfer-core library packaged as native loader mods.** It supplies the public Java API; it does not register its own on-wire network protocol, add blocks, or enable uploads by itself. Consuming mods such as Simply Screens register their native packets and call this API. Local dispatch backpressure is implemented; remote acknowledgements, retransmission, and disk staging are outside the current core.
 
 Minecraft version targets use native loader APIs. Client/server permission checks, media decoding and validation remain the responsibility of the consuming mod. A transfer ID owner must be obtained from the authenticated connection, **never accepted from an untrusted packet**.
 
-## Embedded core integration
+## Installation
 
-Consumers can pin this repository as a Git submodule and compile `core/src/main/java` into their shared module. Include `LICENSE` as `META-INF/LICENSE-PacketWeave`. This needs no PacketWeave loader mod or unpublished Maven artifact. The consumer registers its native packets and calls PacketWeave for splitting, reassembly, byte/session budgets, cancellation, and expiration. Simply Screens uses this path across all five of its targets.
+Install the **native loader jar** matching your Minecraft version and loader in `mods`. Simply Screens 0.8.10 requires PacketWeave **0.1.1 or newer** on both client and dedicated server. For other consumers, follow their declared minimum and side requirements. The `packetweave-core` jar is a development/library artifact, not a substitute for the native mod jar.
+
+PacketWeave has no Architectury API or Fabric API requirement of its own. Download from approved [CurseForge files](https://www.curseforge.com/minecraft/mc-mods/packetweave/files) or [GitHub release assets](https://github.com/UpperMoon0/PacketWeave/releases); do not mix loader/game-version artifacts.
+
+## Runtime library integration
+
+Use the public `com.nstut.packetweave.api` package supplied by the standalone mod and declare `packetweave` as a **required** dependency in every consuming loader descriptor. Simply Screens uses a minimum of 0.1.1 on both sides. Declare the corresponding required dependency on CurseForge release files too; CurseForge relations identify the project while loader metadata enforces the minimum version.
+
+For builds without a published Maven repository, pin this repository as a Git submodule and compile `core/src/main/java` into a separate compile-only API project. Unit tests may use that project's runtime output. Do not put those classes in the consuming mod's production jar. Development game launches still require the matching native PacketWeave jar. Screens' `packetweave-api` project demonstrates this pattern across its five targets.
+
+If a different consumer deliberately embeds the MIT core, it must relocate the entire public package to its own private namespace and include `LICENSE`. Shipping unrelocated copies alongside the standalone mod (or another embedding consumer) creates split-package failures on Forge/NeoForge. Simply Screens does not use embedded copies.
 
 Use `beginBounded(id, totalChunks, trustedByteLimit)` only for legacy packets without an exact byte length. The receiver supplies the limit. `contains(id)` reaps expired state before metadata lookup; `clear()` releases all sessions on connection shutdown. Reject changed packet metadata and authorize every chunk in the adapter. Prefer `begin` when the wire protocol declares an exact length.
 
