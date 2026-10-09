@@ -21,6 +21,8 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 - Namespaced transfer IDs associated with a server-authenticated sender UUID.
 - Explicit transfer authorization hooks on begin, chunk receive, and completion.
 - Indexed chunk reassembly, including out-of-order packets and duplicate rejection.
+- Bounded receive mode for existing indexed protocols without an exact-length header.
+- File and byte-array senders with stable chunk geometry, short-read handling, and file-change detection.
 - Bounded per-transfer, per-owner, global session, and total memory budgets.
 - Expiration, cancellation, owner-disconnect cleanup, and SHA-256 digest utility.
 - Tests for resource limits, permissions, replay/duplicate chunks and expiration.
@@ -30,6 +32,14 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 **This initial version is a functional Java transfer core and native multi-platform build structure, not a completed networking release.** Fabric, Forge and NeoForge loader entrypoints are scaffolded, but do not yet register an on-wire transfer protocol. Future code must add native packet registration, server-client integration tests, backpressure, and disk staging. Do not claim that uploads or cross-loader networking work yet.
 
 Minecraft version targets use native loader APIs. Client/server permission checks, media decoding and validation remain the responsibility of the consuming mod. A transfer ID owner must be obtained from the authenticated connection, **never accepted from an untrusted packet**.
+
+## Embedded core integration
+
+Consumers can pin this repository as a Git submodule and compile `core/src/main/java` into their shared module. Include `LICENSE` as `META-INF/LICENSE-PacketWeave`. This needs no PacketWeave loader mod or unpublished Maven artifact. The consumer registers its native packets and calls PacketWeave for splitting, reassembly, byte/session budgets, cancellation, and expiration. Simply Screens uses this path across all five of its targets.
+
+Use `beginBounded(id, totalChunks, trustedByteLimit)` only for legacy packets without an exact byte length. The receiver supplies the limit. `contains(id)` reaps expired state before metadata lookup; `clear()` releases all sessions on connection shutdown. Reject changed packet metadata and authorize every chunk in the adapter. Prefer `begin` when the wire protocol declares an exact length.
+
+`ChunkedTransfer.send` and `streamFile` emit nonempty chunks up to `CHUNK_BYTES`. Both reject empty files; streaming fills short reads and reports files that shrink or grow. Transport pacing and acknowledgements remain the adapter’s responsibility.
 
 ## Developer example
 
