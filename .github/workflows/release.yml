@@ -13,6 +13,8 @@ on:
       - core/build.gradle
       - targets/**/build.gradle
       - targets/**/gradle.properties
+      - targets/**/src/main/resources/**
+      - icon.png
       - changelog/**
   workflow_dispatch:
     inputs:

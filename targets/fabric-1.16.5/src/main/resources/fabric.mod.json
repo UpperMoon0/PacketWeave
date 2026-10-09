@@ -5,6 +5,7 @@
   "name": "PacketWeave",
   "description": "Secure, bounded data transfers for Minecraft mods.",
   "license": "MIT",
+  "icon": "assets/packetweave/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [

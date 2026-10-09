@@ -93,18 +93,25 @@ def inspect_jar(jar: Path, target: str, version: str) -> None:
             raise ValueError(f"Invalid license: {jar}")
         if target == "core":
             return
+        icon_path = "assets/packetweave/icon.png"
+        if icon_path not in archive.namelist() or not archive.read(icon_path).startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError(f"Missing or invalid mod icon: {jar}")
         loader, minecraft = target.split("-", 1)
         entrypoint = {"fabric": "PacketWeaveFabric", "forge": "PacketWeaveForge", "neoforge": "PacketWeaveNeoForge"}[loader]
         if f"com/nstut/packetweave/{loader}/{entrypoint}.class" not in archive.namelist():
             raise ValueError(f"Missing loader entrypoint: {jar}")
         if loader == "fabric":
             metadata = json.loads(archive.read("fabric.mod.json"))
+            if metadata.get("icon") != icon_path:
+                raise ValueError(f"Incorrect Fabric icon reference: {jar}")
             if (metadata.get("id"), metadata.get("version"), metadata.get("depends", {}).get("minecraft")) != ("packetweave", version, minecraft):
                 raise ValueError(f"Incorrect Fabric metadata: {jar}")
         else:
             name = "mods.toml" if loader == "forge" else "neoforge.mods.toml"
             metadata = tomllib.loads(archive.read(f"META-INF/{name}").decode("utf-8"))
             mods = metadata.get("mods", [])
+            if len(mods) == 1 and mods[0].get("logoFile") != icon_path:
+                raise ValueError(f"Incorrect loader icon reference: {jar}")
             dependencies = metadata.get("dependencies", {}).get("packetweave", [])
             if len(mods) != 1 or (mods[0].get("modId"), mods[0].get("version")) != ("packetweave", version):
                 raise ValueError(f"Incorrect loader metadata: {jar}")

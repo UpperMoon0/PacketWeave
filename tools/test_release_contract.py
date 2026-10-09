@@ -42,14 +42,15 @@ class ReleaseTests(unittest.TestCase):
             archive.writestr("META-INF/LICENSE-PacketWeave", "MIT License\n")
             if target == "core":
                 return
+            archive.writestr("assets/packetweave/icon.png", (release.ROOT / "icon.png").read_bytes())
             loader, minecraft = target.split("-", 1)
             entrypoint = {"fabric": "PacketWeaveFabric", "forge": "PacketWeaveForge", "neoforge": "PacketWeaveNeoForge"}[loader]
             archive.writestr(f"com/nstut/packetweave/{loader}/{entrypoint}.class", b"fixture")
             if loader == "fabric":
-                archive.writestr("fabric.mod.json", json.dumps({"id": "packetweave", "version": version, "depends": {"minecraft": minecraft}}))
+                archive.writestr("fabric.mod.json", json.dumps({"id": "packetweave", "version": version, "icon": "assets/packetweave/icon.png", "depends": {"minecraft": minecraft}}))
             else:
                 name = "mods.toml" if loader == "forge" else "neoforge.mods.toml"
-                archive.writestr(f"META-INF/{name}", f'[[mods]]\nmodId="packetweave"\nversion="{version}"\n[[dependencies.packetweave]]\nmodId="minecraft"\nversionRange="[{minecraft},)"\n')
+                archive.writestr(f"META-INF/{name}", f'[[mods]]\nmodId="packetweave"\nversion="{version}"\nlogoFile="assets/packetweave/icon.png"\n[[dependencies.packetweave]]\nmodId="minecraft"\nversionRange="[{minecraft},)"\n')
 
     def make_bundle(self):
         directory = Path(self.temporary.name) / "bundle"

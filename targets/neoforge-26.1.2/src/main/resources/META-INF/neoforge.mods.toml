@@ -5,6 +5,7 @@ license="MIT"
 modId="packetweave"
 version="${mod_version}"
 displayName="PacketWeave"
+logoFile="assets/packetweave/icon.png"
 authors="NsTut"
 description='''A safe and bounded binary transfer engine for Minecraft mods.'''
 [[dependencies.packetweave]]
