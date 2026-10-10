@@ -28,15 +28,28 @@ public final class TransferRegistry {
         this.clockNanos = Objects.requireNonNull(clockNanos, "clock");
     }
     public synchronized boolean begin(TransferId id, int totalChunks, long declaredBytes) {
+        return begin(id, totalChunks, declaredBytes, true);
+    }
+
+    /**
+     * Starts a legacy indexed transfer whose packets do not declare an exact byte length.
+     * byteLimit is a trusted receiver policy, never a value supplied by the remote peer.
+     * Completion requires every index and at most byteLimit bytes. Empty chunks are rejected.
+     */
+    public synchronized boolean beginBounded(TransferId id, int totalChunks, long byteLimit) {
+        return begin(id, totalChunks, byteLimit, false);
+    }
+
+    private boolean begin(TransferId id, int totalChunks, long declaredBytes, boolean exactBytes) {
         Objects.requireNonNull(id, "id");
         reapExpired();
         if (!allowed(id, TransferOperation.BEGIN)) return false;
         if (active.containsKey(id) || active.size() >= limits.concurrentGlobal()
                 || declaredBytes <= 0 || declaredBytes > limits.transferBytes()
                 || totalChunks <= 0 || totalChunks > (declaredBytes + limits.chunkBytes() - 1) / limits.chunkBytes()
-                || declaredBytes > (long) totalChunks * limits.chunkBytes()
+                || (exactBytes && declaredBytes > (long) totalChunks * limits.chunkBytes())
                 || ownedSessions(id.owner()) >= limits.concurrentPerOwner()) return false;
-        active.put(id, new TransferSession(totalChunks, declaredBytes, clockNanos.getAsLong()));
+        active.put(id, new TransferSession(totalChunks, declaredBytes, clockNanos.getAsLong(), exactBytes));
         return true;
     }
 
@@ -111,4 +124,6 @@ public final class TransferRegistry {
     }
     public synchronized long bufferedBytes() { return buffered; }
     public synchronized int activeSessions() { return active.size(); }
+    public synchronized boolean contains(TransferId id) { reapExpired(); return active.containsKey(id); }
+    public synchronized void clear() { active.clear(); buffered = 0; }
 }

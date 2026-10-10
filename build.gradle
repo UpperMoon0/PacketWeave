@@ -2,5 +2,5 @@ plugins {
     id 'base'
 }
 group = 'com.nstut'
-version = '0.1.0'
+version = mod_version
 tasks.register('testCore') { dependsOn ':core:test' }

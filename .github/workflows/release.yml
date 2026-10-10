@@ -1,0 +1,177 @@
+name: Build and Release Mod
+on:
+  push:
+    branches: [main]
+    paths: [gradle.properties]
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - tools/**
+      - gradle/**
+      - gradle.properties
+      - build.gradle
+      - core/build.gradle
+      - targets/**/build.gradle
+      - targets/**/gradle.properties
+      - targets/**/src/main/resources/**
+      - icon.png
+      - changelog/**
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify release assets without publishing
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: packetweave-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    name: Check release version and source
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      release_type: ${{ steps.plan.outputs.release_type }}
+      changed: ${{ steps.plan.outputs.changed }}
+      publish: ${{ steps.source.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compare mod_version with previous revision
+        id: plan
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == push ]]; then
+            python3 tools/release_contract.py plan --before "$BEFORE_SHA"
+          else
+            python3 tools/release_contract.py plan --force
+          fi
+      - name: Pin publication to the tested source
+        id: source
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          VERSION_CHANGED: ${{ steps.plan.outputs.changed }}
+          PUBLISH_ALLOWED: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)) }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$VERSION_CHANGED" != true ]]; then
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "publish=$PUBLISH_ALLOWED" >> "$GITHUB_OUTPUT"
+          if [[ "$PUBLISH_ALLOWED" == true ]] && git show-ref --verify --quiet "refs/tags/v$VERSION"; then
+            tagged="$(git rev-parse "refs/tags/v$VERSION^{commit}")"
+            [[ "$tagged" == "$SOURCE_SHA" ]] || { echo "Version tag already belongs to another source commit" >&2; exit 1; }
+          fi
+  build:
+    name: Test and build all release targets
+    needs: plan
+    if: needs.plan.outputs.changed == 'true'
+    uses: ./.github/workflows/ci.yml
+  assets:
+    name: Verify complete release bundle
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packetweave-*
+          path: artifacts
+      - name: Check all nine jars and generate source receipt and checksums
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 tools/release_contract.py bundle --artifacts artifacts --output dist --source-sha "$SOURCE_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/*
+          if-no-files-found: error
+      - name: Report publishing configuration
+        env:
+          PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          PUBLISH: ${{ needs.plan.outputs.publish }}
+        run: |
+          if [[ "$PUBLISH" != true ]]; then
+            echo 'Release dry run: publication disabled.' >> "$GITHUB_STEP_SUMMARY"
+          elif [[ -z "$PROJECT_ID" ]]; then
+            echo 'GitHub release enabled. CurseForge publishing awaits CURSEFORGE_PROJECT_ID.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+  publish-curseforge:
+    name: Publish verified loader jars to CurseForge
+    needs: [plan, assets]
+    if: needs.plan.outputs.publish == 'true' && vars.CURSEFORGE_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist
+      - name: Locate receipts from previous attempt
+        id: attempt
+        run: python3 -c 'import os; print("previous=" + str(int(os.environ["GITHUB_RUN_ATTEMPT"]) - 1))' >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: github.run_attempt > 1
+        with:
+          name: curseforge-receipts-attempt-${{ steps.attempt.outputs.previous }}
+          path: publish-receipts
+      - name: Upload all targets after validating all game tags
+        env:
+          CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: python3 tools/publish_curseforge.py --bundle dist --receipt publish-receipts/curseforge.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: curseforge-receipts-attempt-${{ github.run_attempt }}
+          path: publish-receipts/curseforge.json
+          if-no-files-found: ignore
+  release:
+    name: Publish GitHub release
+    needs: [plan, assets, publish-curseforge]
+    if: >-
+      always() && needs.plan.outputs.publish == 'true' &&
+      needs.assets.result == 'success' &&
+      (needs.publish-curseforge.result == 'success' || needs.publish-curseforge.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.plan.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: PacketWeave v${{ needs.plan.outputs.version }}
+          body_path: changelog/${{ needs.plan.outputs.version }}.md
+          prerelease: ${{ needs.plan.outputs.release_type != 'release' }}
+          draft: false
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.jar
+            dist/SHA256SUMS
+            dist/release-manifest.json

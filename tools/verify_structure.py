@@ -33,6 +33,10 @@ class Verify(unittest.TestCase):
                     metadata=(base/"META-INF"/file).read_text()
                     self.assertIn('modId="packetweave"',metadata)
                     self.assertIn(mc,metadata)
+                    if target.startswith("forge-"):
+                        pack=json.loads((base/"pack.mcmeta").read_text())["pack"]
+                        self.assertEqual({"1.16.5":6,"1.20.1":15}[mc],pack["pack_format"])
+                        self.assertTrue(pack["description"])
     def test_core_has_no_loader_dependencies(self):
         for file in (ROOT/"core/src/main/java").rglob("*.java"):
             text=file.read_text()

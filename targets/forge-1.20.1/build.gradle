@@ -28,3 +28,5 @@ jar {
     finalizedBy 'reobfJar'
 }
 publishing { publications { mavenJava(MavenPublication) { artifactId = base.archivesName.get(); from components.java } } }
+
+apply from: file('../../gradle/release-resources.gradle')

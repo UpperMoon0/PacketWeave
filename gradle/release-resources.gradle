@@ -1,0 +1,10 @@
+// Each native target is an independent Gradle root project.
+processResources {
+    from(file('../../icon.png')) {
+        into 'assets/packetweave'
+    }
+    from(file('../../LICENSE')) {
+        into 'META-INF'
+        rename { 'LICENSE-PacketWeave' }
+    }
+}

@@ -6,13 +6,19 @@ import java.util.Arrays;
 final class TransferSession {
     private final byte[][] chunks;
     private final long declaredBytes;
+    private final boolean exactBytes;
     private long receivedBytes;
     private int receivedChunks;
     private long touchedAtNanos;
 
     TransferSession(int totalChunks, long declaredBytes, long nowNanos) {
+        this(totalChunks, declaredBytes, nowNanos, true);
+    }
+
+    TransferSession(int totalChunks, long declaredBytes, long nowNanos, boolean exactBytes) {
         this.chunks = new byte[totalChunks][];
         this.declaredBytes = declaredBytes;
+        this.exactBytes = exactBytes;
         this.touchedAtNanos = nowNanos;
     }
 
@@ -27,7 +33,7 @@ final class TransferSession {
         return true;
     }
 
-    boolean complete() { return receivedChunks == chunks.length && receivedBytes == declaredBytes; }
+    boolean complete() { return receivedChunks == chunks.length && (!exactBytes || receivedBytes == declaredBytes); }
     boolean expired(long nowNanos, long timeoutNanos) {
         return nowNanos - touchedAtNanos >= timeoutNanos;
     }
