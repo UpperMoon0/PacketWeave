@@ -29,23 +29,23 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 
 ### Scope and status
 
-**PacketWeave is a functional transfer-core library packaged as native loader mods.** It supplies the public Java API; it does not register its own on-wire network protocol, add blocks, or enable uploads by itself. Consuming mods such as Simply Screens register their native packets and call this API. Local dispatch backpressure is implemented; remote acknowledgements, retransmission, and disk staging are outside the current core.
+**PacketWeave is a functional transfer-core library packaged as native loader mods.** It supplies the public Java API; it does not register its own on-wire network protocol, add blocks, or enable uploads by itself. The API integrates with native loader packets. Local dispatch backpressure is implemented; remote acknowledgements, retransmission, and disk staging are outside the current core.
 
 Minecraft version targets use native loader APIs. Client/server permission checks, media decoding and validation remain the responsibility of the consuming mod. A transfer ID owner must be obtained from the authenticated connection, **never accepted from an untrusted packet**.
 
 ## Installation
 
-Install the **native loader jar** matching your Minecraft version and loader in `mods`. Simply Screens 0.8.10 requires PacketWeave **0.1.1 or newer** on both client and dedicated server. For other consumers, follow their declared minimum and side requirements. The `packetweave-core` jar is a development/library artifact, not a substitute for the native mod jar.
+Install the **native loader jar** matching your Minecraft version and loader in `mods` on the client, server, or both, as required by the integration. The `packetweave-core` jar is a development/library artifact, not a substitute for the native mod jar.
 
 PacketWeave has no Architectury API or Fabric API requirement of its own. Download from approved [CurseForge files](https://www.curseforge.com/minecraft/mc-mods/packetweave/files) or [GitHub release assets](https://github.com/UpperMoon0/PacketWeave/releases); do not mix loader/game-version artifacts.
 
 ## Runtime library integration
 
-Use the public `com.nstut.packetweave.api` package supplied by the standalone mod and declare `packetweave` as a **required** dependency in every consuming loader descriptor. Simply Screens uses a minimum of 0.1.1 on both sides. Declare the corresponding required dependency on CurseForge release files too; CurseForge relations identify the project while loader metadata enforces the minimum version.
+Use the public `com.nstut.packetweave.api` package supplied by the standalone mod and declare `packetweave` as a **required** dependency in every consuming loader descriptor. Declare the corresponding required dependency on CurseForge release files too; CurseForge relations identify the project while loader metadata enforces the minimum version.
 
-For builds without a published Maven repository, pin this repository as a Git submodule and compile `core/src/main/java` into a separate compile-only API project. Unit tests may use that project's runtime output. Do not put those classes in the consuming mod's production jar. Development game launches still require the matching native PacketWeave jar. Screens' `packetweave-api` project demonstrates this pattern across its five targets.
+For builds without a published Maven repository, pin this repository as a Git submodule and compile `core/src/main/java` into a separate compile-only API project. Unit tests may use that project's runtime output. Do not put those classes in the consuming mod's production jar. Development game launches still require the matching native PacketWeave jar.
 
-If a different consumer deliberately embeds the MIT core, it must relocate the entire public package to its own private namespace and include `LICENSE`. Shipping unrelocated copies alongside the standalone mod (or another embedding consumer) creates split-package failures on Forge/NeoForge. Simply Screens does not use embedded copies.
+If an integration deliberately embeds the MIT core, it must relocate the entire public package to its own private namespace and include `LICENSE`. Shipping unrelocated copies alongside the standalone mod (or another embedding consumer) creates split-package failures on Forge/NeoForge.
 
 Use `beginBounded(id, totalChunks, trustedByteLimit)` only for legacy packets without an exact byte length. The receiver supplies the limit. `contains(id)` reaps expired state before metadata lookup; `clear()` releases all sessions on connection shutdown. Reject changed packet metadata and authorize every chunk in the adapter. Prefer `begin` when the wire protocol declares an exact length.
 
