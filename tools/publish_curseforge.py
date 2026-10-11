@@ -81,8 +81,7 @@ def metadata(target: dict, version: str, release_type: str, changelog: str) -> d
         "displayName": f"PacketWeave {version} - {target['loader_name']} {target['minecraft']}",
         "gameVersionNames": [target["minecraft"], target["loader_name"], f"Java {target['runtime_java']}", "Client", "Server"],
         "releaseType": release_type,
-        # Loader APIs are native: do not inherit Screens' Architectury/OpenUI/Fabric API relations.
-        "relations": {"projects": []},
+        # No dependency relations: CurseForge rejects an empty projects array.
     }
 
 
