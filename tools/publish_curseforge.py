@@ -37,8 +37,21 @@ def request_json(path: str, token: str, data: bytes | None = None, content_type:
             if data is None and retryable and attempt < 2:
                 time.sleep(2 * (attempt + 1))
                 continue
-            # No raw response/request dump: it may contain account data or echoed credentials.
-            raise ValueError(f"CurseForge request failed ({getattr(exception, 'code', 'connection error')}); inspect the run before retrying") from None
+            detail = ""
+            if isinstance(exception, HTTPError):
+                # Bound diagnostics and redact the exact credential before logging.
+                body = exception.read(8192).decode("utf-8", errors="replace")
+                if token:
+                    body = body.replace(token, "[REDACTED]")
+                try:
+                    payload = json.loads(body)
+                    if isinstance(payload, dict):
+                        body = str(payload.get("errorMessage") or payload.get("message") or payload.get("error") or "No error message in response")
+                except (ValueError, TypeError):
+                    pass
+                body = "".join(character if character.isprintable() else " " for character in body)
+                detail = ": " + body[:2000]
+            raise ValueError(f"CurseForge {request.method} {path} failed ({getattr(exception, 'code', 'connection error')}){detail}") from None
     raise AssertionError("unreachable")
 
 
