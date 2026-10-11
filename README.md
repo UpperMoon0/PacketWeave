@@ -16,7 +16,7 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 
 **No Architectury API or Architectury Loom dependency.** The implementation uses native loader toolchains and a shared Java 8-compatible core from `core/src/main/java`. The core sources are compiled into each target jar; no separate core jar is needed at runtime.
 
-## Implemented
+## Features
 
 - Namespaced transfer IDs associated with a server-authenticated sender UUID.
 - Explicit transfer authorization hooks on begin, chunk receive, and completion.
@@ -27,11 +27,11 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 - Expiration, cancellation, owner-disconnect cleanup, and SHA-256 digest utility.
 - Tests for resource limits, permissions, replay/duplicate chunks and expiration.
 
-### Scope and status
+### Transfer API
 
-**PacketWeave is a functional transfer-core library packaged as native loader mods.** It supplies the public Java API; it does not register its own on-wire network protocol, add blocks, or enable uploads by itself. The API integrates with native loader packets. Local dispatch backpressure is implemented; remote acknowledgements, retransmission, and disk staging are outside the current core.
+PacketWeave exposes a public Java API packaged as native loader mods. It manages transfer sessions, indexed chunk assembly, resource budgets, authorization callbacks, and cleanup. File and byte-array senders support bounded dispatch through an executor.
 
-Minecraft version targets use native loader APIs. Client/server permission checks, media decoding and validation remain the responsibility of the consuming mod. A transfer ID owner must be obtained from the authenticated connection, **never accepted from an untrusted packet**.
+The API integrates with native loader packets. Bind each transfer owner to the authenticated connection and apply permission and content-validation policies through the integration.
 
 ## Installation
 
