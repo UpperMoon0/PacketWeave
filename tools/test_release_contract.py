@@ -181,6 +181,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual("/projects/123/upload-file", path)
             body, content_type = data
             self.assertIn("multipart/form-data", content_type)
+            self.assertNotIn(b'"relations"', body)
             self.assertNotIn(b"architectury-api", body)
             self.assertNotIn(b"openui-mc", body)
             self.assertNotIn(b"fabric-api", body)
