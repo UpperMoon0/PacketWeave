@@ -13,7 +13,7 @@ PacketWeave is a shared library for Minecraft mods that transfer binary assets b
 
 ## Current status
 
-The transfer core is functional. Simply Screens 0.8.10 requires the standalone PacketWeave 0.1.1+ mod on clients and dedicated servers and calls its public API for media transfers. PacketWeave supplies the library API; installing it by itself does not register a network protocol or enable uploads.
+PacketWeave provides a functional transfer core through its public Java API. It manages chunk assembly, resource budgets, authorization hooks, and session cleanup. Installing it by itself does not register a network protocol or enable uploads.
 
 Consuming mods supply their own native packets, authenticated sender identity, permissions, content validation, and media handling. PacketWeave manages the transfer state within that integration. It adds no blocks, items, or player-facing interface.
 
