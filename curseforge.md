@@ -11,11 +11,11 @@ PacketWeave is a shared library for Minecraft mods that transfer binary assets b
 - **Input checks:** Reject duplicate chunks and invalid transfer geometry, detect files that change during sending, and provide SHA-256 digest utilities.
 - **Shared core:** Use the same Java 8-compatible transfer implementation across supported loaders and Minecraft versions.
 
-## Current status
+## How it works
 
-PacketWeave provides a functional transfer core through its public Java API. It manages chunk assembly, resource budgets, authorization hooks, and session cleanup. Installing it by itself does not register a network protocol or enable uploads.
+PacketWeave provides a public Java API for sending and receiving binary assets through Minecraft's native networking. Its transfer registry assembles indexed chunks, enforces resource budgets, invokes authorization callbacks, and cleans up transfer sessions.
 
-Consuming mods supply their own native packets, authenticated sender identity, permissions, content validation, and media handling. PacketWeave manages the transfer state within that integration. It adds no blocks, items, or player-facing interface.
+It runs as a library dependency, with the same transfer core packaged for each supported loader.
 
 ## Platform targets
 
@@ -26,7 +26,7 @@ Consuming mods supply their own native packets, authenticated sender identity, p
 | 1.21.1 | Fabric, NeoForge |
 | 26.1.2 | Fabric, NeoForge |
 
-Choose the native mod file matching your Minecraft version and loader. Do not install the development-only core jar as a replacement. The mod adds no independent network protocol; consumers provide the game integration.
+Choose the native mod file matching your Minecraft version and loader. Do not install the development-only core jar as a replacement.
 
 ## For mod developers
 
