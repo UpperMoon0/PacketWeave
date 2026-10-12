@@ -55,6 +55,32 @@ public final class ChunkedTransfer {
     }
 
     /**
+     * Streams bounded batches through an executor with one outstanding dispatch per
+     * worker. At most {@code batchChunks * chunkBytes} payload bytes are retained;
+     * each dispatch sends no more than batchChunks packets. Call off the executor
+     * thread. This bounds local dispatch, not the remote peer's network buffers.
+     */
+    public static void streamFileBatched(Path file, int chunkBytes, long byteLimit,
+                                         int batchChunks, Executor executor, Duration timeout,
+                                         Consumer sink) throws IOException {
+        if (batchChunks <= 0 || batchChunks > 32)
+            throw new IllegalArgumentException("Batch size must be between 1 and 32");
+        Objects.requireNonNull(sink, "sink");
+        java.util.List<byte[]> batch = new java.util.ArrayList<>(batchChunks);
+        Consumer dispatch = onExecutor(executor, timeout, (last, total, ignored) -> {
+            int first = last - batch.size() + 1;
+            for (int i = 0; i < batch.size(); i++) sink.accept(first + i, total, batch.get(i));
+        });
+        streamFile(file, chunkBytes, byteLimit, (index, total, data) -> {
+            batch.add(data);
+            if (batch.size() == batchChunks || index == total - 1) {
+                dispatch.accept(index, total, data);
+                batch.clear();
+            }
+        });
+    }
+
+    /**
      * Backpressure for a worker streaming through a game-thread executor: only one dispatched
      * chunk is outstanding per worker. Call the returned consumer from a different thread.
      * This acknowledges local dispatch, not receipt by the remote peer.

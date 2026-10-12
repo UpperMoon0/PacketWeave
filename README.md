@@ -22,6 +22,7 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 - Explicit transfer authorization hooks on begin, chunk receive, and completion.
 - Indexed chunk reassembly, including out-of-order packets and duplicate rejection.
 - Bounded receive mode for existing indexed protocols without an exact-length header.
+- Background file ingestion with indexed single-flight admission and remote-receipt backpressure.
 - File and byte-array senders with stable chunk geometry, short-read handling, and file-change detection.
 - Bounded per-transfer, per-owner, global session, and total memory budgets.
 - Expiration, cancellation, owner-disconnect cleanup, and SHA-256 digest utility.
@@ -50,6 +51,23 @@ If an integration deliberately embeds the MIT core, it must relocate the entire 
 Use `beginBounded(id, totalChunks, trustedByteLimit)` only for legacy packets without an exact byte length. The receiver supplies the limit. `contains(id)` reaps expired state before metadata lookup; `clear()` releases all sessions on connection shutdown. Reject changed packet metadata and authorize every chunk in the adapter. Prefer `begin` when the wire protocol declares an exact length.
 
 `ChunkedTransfer.send` and `streamFile` emit nonempty chunks up to `CHUNK_BYTES`. Both reject empty files; streaming fills short reads and reports files that shrink or grow. Worker-to-game-thread dispatch can use `ChunkedTransfer.onExecutor` to bound outstanding chunks and abort stalled dispatch. This acknowledges local submission, not remote receipt; bandwidth pacing and remote acknowledgements remain the adapter’s responsibility.
+
+`BoundedFileReceiver` owns a dedicated writer and enforces one pending chunk per
+session plus global/per-owner limits. `begin` and `accept` do not perform I/O or
+wait for disk. Bind `TransferId.owner()` to the authenticated connection, supply
+trusted unique temporary paths and declared lengths, and cancel rejected chunks.
+Its callbacks run on the writer; dispatch game changes explicitly. The committed
+callback receives cumulative bytes and completion, after the write (and final
+close). Final validation inside that callback remains within the session budget.
+Successful files belong to the integration; partial files are cleaned on the worker.
+`close` stops admission without blocking the caller, and cleanup waits for any
+current filesystem call to return.
+
+Use `ReceiptGate.expect(cumulativeBytes)` before sending each chunk and
+`await(timeout)` on the sending worker. Feed authenticated server write receipts
+to `acknowledge`; stale and out-of-window values cannot advance the sender.
+This bounds payload memory independently of total file size. It trades throughput
+for latency isolation: a single window sends at most one chunk per round trip.
 
 ## Developer example
 
