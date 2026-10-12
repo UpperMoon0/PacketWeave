@@ -143,8 +143,12 @@ public final class BoundedFileReceiver implements AutoCloseable {
         Session[] snapshot;
         synchronized (this) { snapshot = sessions.values().toArray(new Session[0]); }
         for (Session s : snapshot) {
-            if (!s.cancelled && !s.pending && System.nanoTime() - s.activity > timeoutNanos)
-                s.cancelled = true;
+            synchronized (this) {
+                // Admission renews activity and sets pending under this same lock. A
+                // freshly accepted chunk must not lose to a stale idle-timeout read.
+                if (!s.cancelled && !s.pending && System.nanoTime() - s.activity > timeoutNanos)
+                    s.cancelled = true;
+            }
             if (!s.cancelled) continue;
             notifyFailure(s, new IOException("Transfer cancelled, expired or receiver closed"));
             if (System.nanoTime() - s.nextCleanupAttempt < 0) continue;
