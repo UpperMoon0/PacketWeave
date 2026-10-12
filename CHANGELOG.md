@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.2.0
+## 0.1.2
 
 - Add nonblocking, bounded background file ingestion with one outstanding indexed chunk per transfer.
 - Enforce global/per-owner session limits without retaining whole asset files.
 - Add cumulative remote-receipt waiting with timeout, cancellation and stale receipt rejection.
 - Clean partial files off the caller thread after cancellation, disconnect, expiry and shutdown.
 - Test 60 MiB content parity, blocked disk backpressure, limits, replay/order, failure and cleanup.
+- Keep cancellation effective through final validation and retry partial-file cleanup within session limits.
+- Add bounded multi-packet executor batches for latency-sensitive file downloads.
 
 ## 0.1.1
 

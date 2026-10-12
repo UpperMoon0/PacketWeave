@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
  * callbacks run on a dedicated worker; callbacks must dispatch game changes themselves.
  * Paths must be unique, trusted temporary paths. Successful files belong to the callback;
  * cancelled, expired, failed and shutdown sessions are deleted by the worker.
+ * Failed cleanup is logged and retried, retaining the session's bounded capacity
+ * until its stream is closed and its partial file is deleted, including after close().
  */
 public final class BoundedFileReceiver implements AutoCloseable {
     public interface Listener {
@@ -29,7 +31,9 @@ public final class BoundedFileReceiver implements AutoCloseable {
     private final ArrayBlockingQueue<Runnable> queue;
     private final Thread worker;
     interface Opener { OutputStream open(Path path) throws IOException; }
+    interface Deleter { void delete(Path path) throws IOException; }
     private final Opener opener;
+    private final Deleter deleter;
     private boolean closed;
 
     public BoundedFileReceiver(int chunkBytes, long byteLimit, int maxSessions,
@@ -39,11 +43,16 @@ public final class BoundedFileReceiver implements AutoCloseable {
     }
     BoundedFileReceiver(int chunkBytes, long byteLimit, int maxSessions, int perOwner,
                         Duration timeout, Opener opener) {
+        this(chunkBytes, byteLimit, maxSessions, perOwner, timeout, opener, Files::deleteIfExists);
+    }
+    BoundedFileReceiver(int chunkBytes, long byteLimit, int maxSessions, int perOwner,
+                        Duration timeout, Opener opener, Deleter deleter) {
         if (chunkBytes <= 0 || chunkBytes > 1024 * 1024 || byteLimit <= 0 ||
                 maxSessions <= 0 || perOwner <= 0 || perOwner > maxSessions ||
                 timeout == null || timeout.isNegative() || timeout.isZero())
             throw new IllegalArgumentException("Invalid file receive limits");
         this.opener = java.util.Objects.requireNonNull(opener, "opener");
+        this.deleter = java.util.Objects.requireNonNull(deleter, "deleter");
         this.chunkBytes = chunkBytes;
         this.byteLimit = byteLimit;
         this.maxSessions = maxSessions;
@@ -112,6 +121,9 @@ public final class BoundedFileReceiver implements AutoCloseable {
             synchronized (this) { if (!complete) s.pending = false; }
             s.listener.committed(s.received, complete);
             synchronized (this) {
+                // Cancellation and successful completion have one atomic terminal boundary.
+                // In particular, a final callback may have spent seconds validating a file.
+                if (s.cancelled) return;
                 if (complete) { s.success = true; sessions.remove(s.id); }
                 else { s.activity = System.nanoTime(); }
             }
@@ -135,9 +147,21 @@ public final class BoundedFileReceiver implements AutoCloseable {
                 s.cancelled = true;
             if (!s.cancelled) continue;
             notifyFailure(s, new IOException("Transfer cancelled, expired or receiver closed"));
-            try { if (s.out != null) s.out.close(); } catch (IOException ignored) { }
-            try { if (!s.success && s.created) Files.deleteIfExists(s.path); } catch (IOException ignored) { }
-            synchronized (this) { sessions.remove(s.id); }
+            if (System.nanoTime() - s.nextCleanupAttempt < 0) continue;
+            try {
+                if (s.out != null) { s.out.close(); s.out = null; }
+                if (!s.success && s.created) deleter.delete(s.path);
+                synchronized (this) { sessions.remove(s.id); }
+            } catch (IOException error) {
+                // Retain ownership of the path AND its session capacity. There can never be
+                // an unbounded orphan queue, even when the filesystem remains unavailable.
+                s.nextCleanupAttempt = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(100);
+                if (!s.cleanupWarning) {
+                    s.cleanupWarning = true;
+                    java.util.logging.Logger.getLogger(BoundedFileReceiver.class.getName()).log(
+                            java.util.logging.Level.WARNING, "Partial-file cleanup failed; retrying " + s.path, error);
+                }
+            }
         }
     }
 
@@ -172,7 +196,8 @@ public final class BoundedFileReceiver implements AutoCloseable {
         long received;
         int index;
         volatile boolean cancelled;
-        boolean pending, success, notified, created;
+        boolean pending, success, notified, created, cleanupWarning;
+        long nextCleanupAttempt;
         long activity = System.nanoTime();
         Session(TransferId id, Path path, long size, Listener listener) {
             this.id = id; this.path = path; this.size = size; this.listener = listener;

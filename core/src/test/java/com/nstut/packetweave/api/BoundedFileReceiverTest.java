@@ -131,4 +131,70 @@ class BoundedFileReceiverTest {
             assertArrayEquals(new byte[]{7}, Files.readAllBytes(existing));
         }
     }
+    @Test void cancellationDuringFinalCallbackWinsAndCleansUp() throws Exception {
+        for (int mode = 0; mode < 3; mode++) {
+            CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+            CountDownLatch failed = new CountDownLatch(1);
+            java.util.concurrent.atomic.AtomicInteger failures = new java.util.concurrent.atomic.AtomicInteger();
+            TransferId id = id(UUID.randomUUID());
+            Path path = dir.resolve("final-cancel-" + mode);
+            try (BoundedFileReceiver receiver = new BoundedFileReceiver(4, 4, 1, 1, Duration.ofSeconds(5))) {
+                assertTrue(receiver.begin(id, path, 4, new BoundedFileReceiver.Listener() {
+                    public void committed(long bytes, boolean complete) throws Exception {
+                        assertTrue(complete);
+                        entered.countDown();
+                        assertTrue(release.await(5, TimeUnit.SECONDS));
+                    }
+                    public void failed(Exception error) { failures.incrementAndGet(); failed.countDown(); }
+                }));
+                assertTrue(receiver.accept(id, 0, new byte[4]));
+                assertTrue(entered.await(5, TimeUnit.SECONDS));
+                if (mode == 0) receiver.cancel(id);
+                if (mode == 1) receiver.cancelOwner(id.owner());
+                if (mode == 2) receiver.close();
+                release.countDown();
+                assertTrue(failed.await(5, TimeUnit.SECONDS));
+                awaitNoSessions(receiver);
+                assertFalse(Files.exists(path));
+                assertEquals(1, failures.get());
+            } finally { release.countDown(); }
+        }
+    }
+
+    @Test void transientDeleteFailureRetainsCapacityAndRetriesAfterClose() throws Exception {
+        CountDownLatch firstDelete = new CountDownLatch(1), allowDelete = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
+        Path path = dir.resolve("retry-delete");
+        TransferId id = id(UUID.randomUUID());
+        Probe probe = new Probe();
+        try (BoundedFileReceiver receiver = new BoundedFileReceiver(4, 8, 1, 1, Duration.ofSeconds(5),
+                p -> Files.newOutputStream(p, StandardOpenOption.CREATE_NEW), p -> {
+                    attempts.incrementAndGet();
+                    if (allowDelete.getCount() != 0) {
+                        firstDelete.countDown();
+                        throw new IOException("simulated transient file lock");
+                    }
+                    Files.deleteIfExists(p);
+                })) {
+            assertTrue(receiver.begin(id, path, 8, probe));
+            assertTrue(receiver.accept(id, 0, new byte[4]));
+            probe.receipt();
+            receiver.cancelOwner(id.owner());
+            assertTrue(firstDelete.await(5, TimeUnit.SECONDS));
+            assertEquals(1, receiver.activeSessions());
+            assertFalse(receiver.begin(id(UUID.randomUUID()), dir.resolve("over-capacity"), 4, new Probe()));
+            receiver.close();
+            allowDelete.countDown();
+            awaitNoSessions(receiver);
+            assertFalse(Files.exists(path));
+            assertTrue(attempts.get() >= 2);
+        } finally { allowDelete.countDown(); }
+    }
+
+    private static void awaitNoSessions(BoundedFileReceiver receiver) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (receiver.activeSessions() != 0 && System.nanoTime() < deadline) Thread.sleep(5);
+        assertEquals(0, receiver.activeSessions());
+    }
+
 }

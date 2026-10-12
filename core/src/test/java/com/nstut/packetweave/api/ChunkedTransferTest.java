@@ -126,4 +126,46 @@ class ChunkedTransferTest {
         Files.write(file, new byte[]{1,2,3,4,5});
         assertThrows(IOException.class, () -> ChunkedTransfer.streamFile(file,4,4,(i,t,b) -> fail("must not send")));
     }
+    @Test void sixtyMiBBatchingBoundsEachDispatchAndPreservesPacketOrder() throws Exception {
+        Path file = directory.resolve("sixty-mib");
+        long size = 60L * 1024 * 1024;
+        try (java.io.RandomAccessFile output = new java.io.RandomAccessFile(file.toFile(), "rw")) {
+            output.setLength(size);
+        }
+        int[] dispatches = {0}, inBatch = {0}, nextIndex = {0};
+        long[] received = {0};
+        ChunkedTransfer.streamFileBatched(file, 32000, size, 16, task -> {
+            dispatches[0]++;
+            inBatch[0] = 0;
+            task.run();
+            assertTrue(inBatch[0] > 0 && inBatch[0] <= 16);
+        }, Duration.ofSeconds(5), (index, total, data) -> {
+            assertEquals(nextIndex[0]++, index);
+            assertEquals(1967, total);
+            assertTrue(data.length > 0 && data.length <= 32000);
+            inBatch[0]++;
+            received[0] += data.length;
+        });
+        assertEquals(size, received[0]);
+        assertEquals(1967, nextIndex[0]);
+        assertEquals(123, dispatches[0]); // 6.15 seconds at one dispatch per 50 ms tick, not 98.35.
+    }
+
+    @Test void batchTimeoutAndFailureNeverSendSubsequentBatches() throws Exception {
+        Path file = directory.resolve("batches");
+        Files.write(file, new byte[33]);
+        java.util.List<Runnable> queued = new java.util.ArrayList<>();
+        assertThrows(IOException.class, () -> ChunkedTransfer.streamFileBatched(file, 4, 33, 4,
+                queued::add, Duration.ofMillis(1), (i,t,b) -> fail("stale dispatch")));
+        assertEquals(1, queued.size());
+        queued.get(0).run();
+        int[] received = {0};
+        assertThrows(IOException.class, () -> ChunkedTransfer.streamFileBatched(file, 4, 33, 4,
+                Runnable::run, Duration.ofSeconds(5), (i,t,b) -> {
+                    received[0]++;
+                    if (i == 2) throw new IOException("disconnected");
+                }));
+        assertEquals(3, received[0]);
+    }
+
 }
