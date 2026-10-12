@@ -181,6 +181,13 @@ public final class BoundedFileReceiver implements AutoCloseable {
             queue.clear();
         }
     }
+    /**
+     * Nonblocking shutdown without cancelling an already accepted final callback.
+     * Rejects all new sessions and chunks, processes queued writes, and expires idle
+     * incomplete sessions. Call cancel() for any sessions that should not drain.
+     */
+    public synchronized void drainAndClose() { closed = true; }
+
     /** Nonblocking. Cleanup occurs on the writer after any current disk call returns. */
     @Override public synchronized void close() {
         closed = true;

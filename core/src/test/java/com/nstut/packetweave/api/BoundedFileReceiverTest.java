@@ -191,6 +191,47 @@ class BoundedFileReceiverTest {
         } finally { allowDelete.countDown(); }
     }
 
+    @Test void drainRejectsAdmissionButPreservesAcceptedFinalCommit() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger failures = new java.util.concurrent.atomic.AtomicInteger();
+        Path path = dir.resolve("drained-success");
+        TransferId id = id(UUID.randomUUID());
+        try (BoundedFileReceiver receiver = new BoundedFileReceiver(4, 8, 2, 1, Duration.ofMillis(100))) {
+            assertTrue(receiver.begin(id, path, 4, new BoundedFileReceiver.Listener() {
+                public void committed(long bytes, boolean complete) throws Exception {
+                    entered.countDown();
+                    assertTrue(release.await(5, TimeUnit.SECONDS));
+                }
+                public void failed(Exception error) { failures.incrementAndGet(); }
+            }));
+            assertTrue(receiver.accept(id, 0, new byte[4]));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            receiver.drainAndClose();
+            assertFalse(receiver.begin(id(UUID.randomUUID()), dir.resolve("late"), 4, new Probe()));
+            assertFalse(receiver.accept(id, 1, new byte[4]));
+            release.countDown();
+            awaitNoSessions(receiver);
+            assertEquals(0, failures.get());
+            assertEquals(4, Files.size(path));
+        } finally { release.countDown(); }
+    }
+
+    @Test void drainExpiresIncompleteSessionsWithoutAcceptingMoreChunks() throws Exception {
+        Probe probe = new Probe();
+        TransferId id = id(UUID.randomUUID());
+        Path path = dir.resolve("drained-incomplete");
+        try (BoundedFileReceiver receiver = new BoundedFileReceiver(4, 8, 1, 1, Duration.ofMillis(100))) {
+            assertTrue(receiver.begin(id, path, 8, probe));
+            assertTrue(receiver.accept(id, 0, new byte[4]));
+            probe.receipt();
+            receiver.drainAndClose();
+            assertFalse(receiver.accept(id, 1, new byte[4]));
+            assertTrue(probe.failed.await(5, TimeUnit.SECONDS));
+            awaitNoSessions(receiver);
+            assertFalse(Files.exists(path));
+        }
+    }
+
     private static void awaitNoSessions(BoundedFileReceiver receiver) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (receiver.activeSessions() != 0 && System.nanoTime() < deadline) Thread.sleep(5);
