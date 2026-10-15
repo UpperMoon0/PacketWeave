@@ -20,6 +20,7 @@ Eight independent native projects live under `targets/`. This is intentional: Fo
 
 - Namespaced transfer IDs associated with a server-authenticated sender UUID.
 - Explicit transfer authorization hooks on begin, chunk receive, and completion.
+- Contextual transfer registries pin trusted consumer metadata to transfer lifetime and release it on completion, expiry, rejection, disconnect or cancellation.
 - Indexed chunk reassembly, including out-of-order packets and duplicate rejection.
 - Bounded receive mode for existing indexed protocols without an exact-length header.
 - Background file ingestion with indexed single-flight admission and remote-receipt backpressure.
