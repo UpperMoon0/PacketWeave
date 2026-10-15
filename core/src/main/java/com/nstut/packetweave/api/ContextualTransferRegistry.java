@@ -14,7 +14,7 @@ import java.util.function.LongSupplier;
  */
 public final class ContextualTransferRegistry<T> {
     private final TransferRegistry transfers;
-    private final Map<TransferId,T> contexts = new HashMap<>();
+    private final Map<TransferId,T> contexts = new java.util.LinkedHashMap<>();
 
     public ContextualTransferRegistry(TransferLimits limits, TransferAuthorizer authorizer) {
         this(limits, authorizer, System::nanoTime);
@@ -47,6 +47,10 @@ public final class ContextualTransferRegistry<T> {
         transfers.reapExpired();
         Iterator<TransferId> iterator=contexts.keySet().iterator();
         while(iterator.hasNext()) if(!transfers.contains(iterator.next())) iterator.remove();
+    }
+    /** Immutable admission-ordered snapshot for consumer supersession/eviction policy. */
+    public synchronized Map<TransferId,T> contexts() {
+        reapExpired(); return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(contexts));
     }
     public synchronized void clear() { transfers.clear(); contexts.clear(); }
     public synchronized int activeSessions() { reapExpired(); return contexts.size(); }

@@ -33,4 +33,12 @@ class ContextualTransferRegistryTest {
         TransferId a=id(); assertTrue(r.begin(a,1,4,"permission")); allowed.set(false);
         assertFalse(r.accept(a,0,new byte[4])); assertNull(r.context(a));
     }
+    @Test void snapshotsAreImmutableOrderedAndDetachedFromLifecycleChanges() {
+        ContextualTransferRegistry<String> r=new ContextualTransferRegistry<>(limits,(id,op)->true,clock::get);
+        TransferId a=id(), b=id(); assertTrue(r.begin(a,1,4,"first")); assertTrue(r.begin(b,1,4,"second"));
+        java.util.Map<TransferId,String> snapshot=r.contexts();
+        assertEquals(a,snapshot.keySet().iterator().next());
+        assertThrows(UnsupportedOperationException.class,()->snapshot.clear());
+        r.cancel(a); assertEquals(2,snapshot.size()); assertEquals(1,r.contexts().size());
+    }
 }
