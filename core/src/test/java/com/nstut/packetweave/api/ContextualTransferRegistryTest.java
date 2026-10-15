@@ -41,4 +41,55 @@ class ContextualTransferRegistryTest {
         assertThrows(UnsupportedOperationException.class,()->snapshot.clear());
         r.cancel(a); assertEquals(2,snapshot.size()); assertEquals(1,r.contexts().size());
     }
+    @Test void contextSweepUsesOneExpirySnapshot() {
+        java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+        ContextualTransferRegistry<String> r = new ContextualTransferRegistry<>(limits,
+                (id, op) -> true, () -> { reads.incrementAndGet(); return clock.get(); });
+        assertTrue(r.begin(id(), 1, 4, "a"));
+        assertTrue(r.begin(id(), 1, 4, "b"));
+        reads.set(0);
+        assertEquals(2, r.contexts().size());
+        assertEquals(1, reads.get(), "one expiry instant for the entire context snapshot");
+    }
+
+    @Test void authorizationCannotChargeBytesToAReapedSession() {
+        java.util.concurrent.atomic.AtomicReference<ContextualTransferRegistry<String>> ref =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        ContextualTransferRegistry<String> r = new ContextualTransferRegistry<>(limits, (id, op) -> {
+            if (op == TransferOperation.ACCEPT_CHUNK) {
+                String trusted = ref.get().context(id);
+                clock.set(2_000_000_000L);
+                ref.get().context(id); // A second policy lookup reaps the session.
+                return trusted != null;
+            }
+            return true;
+        }, clock::get);
+        ref.set(r);
+        TransferId a = id();
+        assertTrue(r.begin(a, 1, 4, "trusted"));
+        assertFalse(r.accept(a, 0, new byte[4]));
+        assertEquals(0, r.activeSessions());
+        assertEquals(0, r.bufferedBytes());
+    }
+
+    @Test void completionCannotReturnDataFromAReapedSession() {
+        java.util.concurrent.atomic.AtomicReference<ContextualTransferRegistry<String>> ref =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        ContextualTransferRegistry<String> r = new ContextualTransferRegistry<>(limits, (id, op) -> {
+            if (op == TransferOperation.COMPLETE) {
+                String trusted = ref.get().context(id);
+                clock.set(2_000_000_000L);
+                ref.get().context(id);
+                return trusted != null;
+            }
+            return true;
+        }, clock::get);
+        ref.set(r);
+        TransferId a = id();
+        assertTrue(r.begin(a, 1, 4, "trusted"));
+        assertTrue(r.accept(a, 0, new byte[4]));
+        assertNull(r.complete(a));
+        assertEquals(0, r.activeSessions());
+        assertEquals(0, r.bufferedBytes());
+    }
 }

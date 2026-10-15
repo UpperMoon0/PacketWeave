@@ -1,6 +1,5 @@
 package com.nstut.packetweave.api;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -46,7 +45,7 @@ public final class ContextualTransferRegistry<T> {
     public synchronized void reapExpired() {
         transfers.reapExpired();
         Iterator<TransferId> iterator=contexts.keySet().iterator();
-        while(iterator.hasNext()) if(!transfers.contains(iterator.next())) iterator.remove();
+        while(iterator.hasNext()) if(!transfers.containsActive(iterator.next())) iterator.remove();
     }
     /** Immutable admission-ordered snapshot for consumer supersession/eviction policy. */
     public synchronized Map<TransferId,T> contexts() {

@@ -58,6 +58,8 @@ public final class TransferRegistry {
         TransferSession session = active.get(id);
         if (session == null) return false;
         if (!allowed(id, TransferOperation.ACCEPT_CHUNK)) { cancel(id); return false; }
+        // Authorization may reenter the registry, for example through a contextual lookup.
+        if (active.get(id) != session) return false;
         if (bytes == null || bytes.length == 0 || bytes.length > limits.chunkBytes()
                 || buffered > limits.bufferedBytes() - bytes.length) { cancel(id); return false; }
         if (!session.add(index, bytes, limits.chunkBytes(), clockNanos.getAsLong())) {
@@ -74,6 +76,7 @@ public final class TransferRegistry {
         TransferSession session = active.get(id);
         if (session == null) return null;
         if (!allowed(id, TransferOperation.COMPLETE)) { cancel(id); return null; }
+        if (active.get(id) != session) return null;
         if (!session.complete()) return null;
         byte[] result = session.join();
         cancel(id);
@@ -125,5 +128,7 @@ public final class TransferRegistry {
     public synchronized long bufferedBytes() { return buffered; }
     public synchronized int activeSessions() { return active.size(); }
     public synchronized boolean contains(TransferId id) { reapExpired(); return active.containsKey(id); }
+    /** Membership after a caller-owned expiry pass; does not advance the clock. */
+    synchronized boolean containsActive(TransferId id) { return active.containsKey(id); }
     public synchronized void clear() { active.clear(); buffered = 0; }
 }
