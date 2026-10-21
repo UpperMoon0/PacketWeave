@@ -3,12 +3,8 @@
 from pathlib import Path
 import json, unittest
 ROOT=Path(__file__).resolve().parents[1]
-TARGETS={
-"fabric-1.16.5":8,"forge-1.16.5":8,
-"fabric-1.20.1":17,"forge-1.20.1":17,
-"fabric-1.21.1":21,"neoforge-1.21.1":21,
-"fabric-26.1.2":25,"neoforge-26.1.2":25,
-}
+from release_contract import TARGETS as TARGET_MATRIX
+TARGETS = {item["target"]: int(item["runtime_java"]) for item in TARGET_MATRIX}
 class Verify(unittest.TestCase):
     def test_target_matrix(self):
         for target, java in TARGETS.items():
@@ -17,7 +13,11 @@ class Verify(unittest.TestCase):
                 for f in ("settings.gradle","build.gradle","gradle.properties","gradlew","gradlew.bat","gradle/wrapper/gradle-wrapper.jar","gradle/wrapper/gradle-wrapper.properties"):
                     self.assertTrue((base/f).is_file(),str(base/f))
                 build=(base/"build.gradle").read_text()
-                self.assertIn("JavaLanguageVersion.of("+str(java)+")",build)
+                if target == "forge-1.12.2":
+                    self.assertIn("sourceCompatibility = targetCompatibility = '1.8'", build)
+                    self.assertIn("ForgeGradle:3.0.197", build)
+                else:
+                    self.assertIn("JavaLanguageVersion.of("+str(java)+")",build)
                 self.assertNotIn("architectury",build.lower())
     def test_loader_metadata(self):
         for target in TARGETS:
@@ -28,6 +28,11 @@ class Verify(unittest.TestCase):
                     metadata=json.loads((base/"fabric.mod.json").read_text())
                     self.assertEqual(metadata["id"],"packetweave")
                     self.assertEqual(metadata["depends"]["minecraft"],mc)
+                elif target == "forge-1.12.2":
+                    metadata = json.loads((base/"mcmod.info").read_text())[0]
+                    self.assertEqual(metadata["modid"], "packetweave")
+                    self.assertEqual(metadata["mcversion"], "${minecraft_version}")
+                    self.assertEqual(json.loads((base/"pack.mcmeta").read_text())["pack"]["pack_format"], 3)
                 else:
                     file="mods.toml" if target.startswith("forge") else "neoforge.mods.toml"
                     metadata=(base/"META-INF"/file).read_text()
@@ -37,6 +42,18 @@ class Verify(unittest.TestCase):
                         pack=json.loads((base/"pack.mcmeta").read_text())["pack"]
                         self.assertEqual({"1.16.5":6,"1.20.1":15}[mc],pack["pack_format"])
                         self.assertTrue(pack["description"])
+    def test_requested_lanes_and_independent_toolchains(self):
+        self.assertTrue({"forge-1.12.2", "fabric-1.16.5", "forge-1.16.5", "fabric-26.2", "neoforge-26.2"}.issubset(TARGETS))
+        self.assertNotIn("fabric-1.12.2", TARGETS)
+        self.assertEqual(set(TARGETS), {path.name for path in (ROOT/"targets").iterdir() if path.is_dir()})
+        for target, gradle in {"forge-1.12.2": "5.6.4", "fabric-26.2": "9.5.1", "neoforge-26.2": "9.2.1"}.items():
+            wrapper = (ROOT/"targets"/target/"gradle/wrapper/gradle-wrapper.properties").read_text()
+            self.assertIn("gradle-" + gradle + "-bin.zip", wrapper)
+        fabric = (ROOT/"targets/fabric-26.2/build.gradle").read_text()
+        self.assertIn("net.fabricmc.fabric-loom'", fabric)
+        self.assertNotIn("fabric-loom-remap", fabric)
+        self.assertNotIn("mappings ", fabric)
+
     def test_core_has_no_loader_dependencies(self):
         for file in (ROOT/"core/src/main/java").rglob("*.java"):
             text=file.read_text()

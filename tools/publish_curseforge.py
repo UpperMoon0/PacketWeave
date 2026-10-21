@@ -63,7 +63,7 @@ def release_assets(directory: Path, source_sha: str, root: Path = ROOT) -> tuple
     assets = manifest.get("assets", [])
     expected = {"core"} | {target["target"] for target in TARGETS}
     if len(assets) != len(expected) or {asset["target"] for asset in assets} != expected:
-        raise ValueError("Release manifest must contain exactly the core and all eight native targets")
+        raise ValueError("Release manifest must contain exactly the core and all configured native targets")
     for asset in assets:
         target = asset["target"]
         if asset.get("file") != filename(target, values["mod_version"]):

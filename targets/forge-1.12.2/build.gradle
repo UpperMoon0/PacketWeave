@@ -1,0 +1,63 @@
+// Forge's 1.12.2 MDK uses ForgeGradle 3 and Gradle 5.6.4 on Java 8.
+// It cannot use the Java toolchain DSL from the modern independent targets.
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:3.0.197' }
+}
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
+    throw new GradleException('Forge 1.12.2 requires a Java 8 JAVA_HOME (Gradle 5.6.4 / ForgeGradle 3).')
+}
+group = 'com.nstut'
+version = mod_version
+archivesBaseName = 'packetweave-forge-1.12.2'
+sourceCompatibility = targetCompatibility = '1.8'
+sourceSets.main.java.srcDir file('../../core/src/main/java')
+
+minecraft {
+    mappings channel: 'stable', version: '39-1.12'
+    runs {
+        client { workingDirectory project.file('run') }
+        server { workingDirectory project.file('run'); args 'nogui' }
+    }
+}
+dependencies { minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}" }
+processResources {
+    def params = [mod_version: version, minecraft_version: minecraft_version]
+    inputs.properties params
+    filesMatching('mcmod.info') { expand params }
+}
+tasks.withType(JavaCompile) { options.encoding = 'UTF-8' }
+jar {
+    manifest { attributes 'Specification-Title': 'packetweave', 'Implementation-Version': version }
+    finalizedBy 'reobfJar'
+}
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+artifacts { archives sourcesJar }
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = archivesBaseName
+            artifact jar
+            artifact sourcesJar
+        }
+    }
+}
+
+// FML 1.12 does not discover separate exploded classes/resources directories.
+// Match the official MDK so both runClient and runServer can find mcmod.info.
+sourceSets.each {
+    def outputDirectory = file("$buildDir/sourceSets/$it.name")
+    it.output.resourcesDir = outputDirectory
+    it.java.outputDir = outputDirectory
+}
+apply from: file('../../gradle/release-resources.gradle')
