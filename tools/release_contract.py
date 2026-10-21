@@ -18,14 +18,29 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGETS = [
     {"target": f"{loader}-{mc}", "minecraft": mc, "loader": loader,
      "loader_name": {"fabric": "Fabric", "forge": "Forge", "neoforge": "NeoForge"}[loader],
-     "java": "17" if loader == "forge" else "25", "runtime_java": str(java)}
+     "java": "8" if mc == "1.12.2" else ("17" if loader == "forge" else "25"),
+     "runtime_java": str(java)}
     for mc, loaders, java in [
+        ("1.12.2", ["forge"], 8),
         ("1.16.5", ["fabric", "forge"], 8),
         ("1.20.1", ["fabric", "forge"], 17),
         ("1.21.1", ["fabric", "neoforge"], 21),
         ("26.1.2", ["fabric", "neoforge"], 25),
+        ("26.2", ["fabric", "neoforge"], 25),
     ] for loader in loaders
 ]
+
+
+CORE_CLASSES = {
+    "TransferRegistry", "TransferSession", "TransferId", "TransferLimits",
+    "TransferOperation", "TransferAuthorizer", "TransferDigest", "ChunkedTransfer",
+    "ContextualTransferRegistry", "BoundedFileReceiver", "ReceiptGate",
+}
+
+
+def native_icon_field(target: str) -> str:
+    """NeoForge 26.2 renders square mod-list artwork via iconFile, not legacy logoFile."""
+    return "iconFile" if target == "neoforge-26.2" else "logoFile"
 
 
 def properties(text: str) -> dict[str, str]:
@@ -82,15 +97,20 @@ def inspect_jar(jar: Path, target: str, version: str) -> None:
     if jar.name != filename(target, version):
         raise ValueError(f"Unexpected production filename: {jar.name}")
     with zipfile.ZipFile(jar) as archive:
-        required = {
-            "com/nstut/packetweave/api/TransferRegistry.class",
-            "com/nstut/packetweave/api/ChunkedTransfer.class",
-            "META-INF/LICENSE-PacketWeave",
-        }
+        required = {f"com/nstut/packetweave/api/{name}.class" for name in CORE_CLASSES}
+        required.add("META-INF/LICENSE-PacketWeave")
         if not required.issubset(archive.namelist()):
             raise ValueError(f"Missing core classes or license: {jar}")
         if not archive.read("META-INF/LICENSE-PacketWeave").startswith(b"MIT License"):
             raise ValueError(f"Invalid license: {jar}")
+        runtime = 8 if target == "core" else int(next(item["runtime_java"] for item in TARGETS if item["target"] == target))
+        for name in archive.namelist():
+            if name.endswith(".class"):
+                header = archive.read(name)[:8]
+                if len(header) != 8 or header[:4] != b"\xca\xfe\xba\xbe":
+                    raise ValueError(f"Invalid class file: {name}")
+                if int.from_bytes(header[6:8], "big") > runtime + 44:
+                    raise ValueError(f"Class exceeds Java {runtime}: {name}")
         if target == "core":
             return
         icon_path = "assets/packetweave/icon.png"
@@ -104,7 +124,7 @@ def inspect_jar(jar: Path, target: str, version: str) -> None:
             if "pack.mcmeta" not in archive.namelist():
                 raise ValueError(f"Missing Forge pack metadata: {jar}")
             pack = json.loads(archive.read("pack.mcmeta")).get("pack", {})
-            expected_format = {"1.16.5": 6, "1.20.1": 15}[minecraft]
+            expected_format = {"1.12.2": 3, "1.16.5": 6, "1.20.1": 15}[minecraft]
             if pack.get("pack_format") != expected_format or not pack.get("description"):
                 raise ValueError(f"Incorrect Forge pack metadata: {jar}")
         if loader == "fabric":
@@ -113,11 +133,23 @@ def inspect_jar(jar: Path, target: str, version: str) -> None:
                 raise ValueError(f"Incorrect Fabric icon reference: {jar}")
             if (metadata.get("id"), metadata.get("version"), metadata.get("depends", {}).get("minecraft")) != ("packetweave", version, minecraft):
                 raise ValueError(f"Incorrect Fabric metadata: {jar}")
+        elif target == "forge-1.12.2":
+            metadata = json.loads(archive.read("mcmod.info"))
+            if len(metadata) != 1 or any(metadata[0].get(key) != value for key, value in {
+                "modid": "packetweave", "version": version, "mcversion": minecraft, "logoFile": icon_path,
+            }.items()):
+                raise ValueError(f"Incorrect legacy Forge metadata: {jar}")
+            if "META-INF/mods.toml" in archive.namelist():
+                raise ValueError(f"Modern Forge metadata in legacy jar: {jar}")
         else:
             name = "mods.toml" if loader == "forge" else "neoforge.mods.toml"
             metadata = tomllib.loads(archive.read(f"META-INF/{name}").decode("utf-8"))
             mods = metadata.get("mods", [])
-            if len(mods) == 1 and mods[0].get("logoFile") != icon_path:
+            if target == "neoforge-26.2" and (
+                "logoFile" in metadata or any("logoFile" in mod for mod in mods)
+            ):
+                raise ValueError(f"Deprecated NeoForge 26.2 logoFile metadata: {jar}")
+            if len(mods) == 1 and mods[0].get(native_icon_field(target)) != icon_path:
                 raise ValueError(f"Incorrect loader icon reference: {jar}")
             dependencies = metadata.get("dependencies", {}).get("packetweave", [])
             if len(mods) != 1 or (mods[0].get("modId"), mods[0].get("version")) != ("packetweave", version):
@@ -188,7 +220,7 @@ def main() -> None:
     args = parser.parse_args()
     values = verify()
     if args.command == "verify":
-        print(f"Release contract verified for {values['mod_version']} and all eight targets")
+        print(f"Release contract verified for {values['mod_version']} and all {len(TARGETS)} targets")
     elif args.command == "plan":
         previous = None
         if args.before and set(args.before) != {"0"}:
@@ -201,7 +233,7 @@ def main() -> None:
         github_output({"jar_path": production_jar(args.directory, args.target, values["mod_version"]).as_posix()})
     else:
         bundle(args.artifacts, args.output, values["mod_version"], args.source_sha)
-        print("Verified nine release jars, source receipt and checksums")
+        print(f"Verified {len(TARGETS) + 1} release jars, source receipt and checksums")
 
 
 if __name__ == "__main__":

@@ -25,3 +25,18 @@ processResources {
         rename { 'LICENSE-PacketWeave' }
     }
 }
+
+// Run the same Java 8-compiled API/security/lifecycle suite on the oldest and
+// newest requested game runtimes; no Minecraft installation is needed here.
+[8, 25].each { runtime ->
+    tasks.register("testJava${runtime}", Test) {
+        description = "Runs the shared API suite on Java ${runtime}."
+        group = 'verification'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(runtime)
+        }
+        useJUnitPlatform()
+    }
+}

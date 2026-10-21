@@ -1,6 +1,6 @@
 # Releasing PacketWeave
 
-The pipeline follows the Simply Screens release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports all eight independent native targets plus the loader-neutral core.
+The pipeline follows the Simply Screens release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports all eleven independent native targets plus the loader-neutral core.
 
 ## Configuration
 
@@ -23,10 +23,10 @@ The Java package/mod ID stays `packetweave`; the project ID above identifies the
 
 ## Preparing a version
 
-1. Set `mod_version` in the root `gradle.properties` and all eight `targets/*/gradle.properties` files. The core reads the root version directly.
+1. Set `mod_version` in the root `gradle.properties` and all eleven `targets/*/gradle.properties` files. The core reads the root version directly.
 2. Add `changelog/<version>.md` and update `CHANGELOG.md`.
 3. Set root `release_type` to `alpha`, `beta` or `release`. Alpha/beta also mark the GitHub release as a prerelease.
-4. Open or update the PR. CI checks version consistency, changelog presence, the core tests, eight native builds, expanded loader metadata, packaged core classes and the MIT license.
+4. Open or update the PR. CI checks version consistency, changelog presence, the core tests, eleven native builds, expanded loader metadata, packaged core classes and the MIT license.
 5. Merge only after the required checks pass. A version change on `main` runs **Build and Release Mod**. A root properties change without a version change does not publish again.
 
 The release dry run runs on PRs that change release tooling/configuration. It executes the same reusable build workflow and assembles the full bundle, but publishing is disabled for PRs and non-main branches.
@@ -42,9 +42,9 @@ The `v<version>` tag must point to the tested source commit. The workflow refuse
 
 ## Release assets and upload receipts
 
-The verified release bundle contains eight runnable loader jars, `packetweave-core-<version>.jar`, `SHA256SUMS` and `release-manifest.json`. Source/dev jars are excluded. The manifest binds every jar's SHA-256 to the source commit. All nine jars must verify before publishing begins.
+The verified release bundle contains eleven runnable loader jars, `packetweave-core-<version>.jar`, `SHA256SUMS` and `release-manifest.json`. Source/dev jars are excluded. The manifest binds every jar's SHA-256 to the source commit. All twelve jars must verify before publishing begins.
 
-Only the eight loader jars go to CurseForge. Every Minecraft, loader, Java, Client and Server tag is checked before the first upload. Each successful upload must return a positive file ID; success is recorded with the jar's hash in a workflow artifact.
+Only the eleven loader jars go to CurseForge. Every Minecraft, loader, Java, Client and Server tag is checked before the first upload. Each successful upload must return a positive file ID; success is recorded with the jar's hash in a workflow artifact.
 
 Use **Re-run failed jobs** to resume a partially completed upload within the same workflow run. Confirmed receipts from the preceding run attempt prevent uploading the same jars again. A failed or timed-out upload request is not automatically repeated: check the CurseForge project if its outcome was ambiguous. Receipts are only created for confirmed file IDs, and text such as “already uploaded” is not treated as proof of success.
 
@@ -62,7 +62,7 @@ python tools/verify_structure.py
 python tools/build_matrix.py build --all
 ```
 
-Gradle runtime requirements remain Java 17 for Forge and the core, and Java 25 for Fabric and NeoForge targets; native bytecode targets remain Java 8/17/21/25 according to Minecraft version.
+Gradle runtime requirements remain Java 8 for Forge 1.12.2; Java 17 for the other Forge targets and the core, and Java 25 for Fabric and NeoForge targets; native bytecode targets remain Java 8/17/21/25 according to Minecraft version.
 
 The loader mods expose the functional core API without registering an independent wire protocol. The release workflow verifies packaging and the core; it does not replace consuming mods' live networking tests.
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil, json
+from release_contract import native_icon_field
 ROOT=Path(__file__).resolve().parents[1]
 def write(name, text):
     p=ROOT/name
@@ -140,6 +141,7 @@ license="MIT"
 modId="packetweave"
 version="DOLLAR_{mod_version}"
 displayName="PacketWeave"
+ZZICONFIELDZZ="assets/packetweave/icon.png"
 authors="NsTut"
 description='''A safe and bounded binary transfer engine for Minecraft mods.'''
 [[dependencies.packetweave]]
@@ -208,7 +210,7 @@ for mod, mc, java, gradle in targets:
         props+=["neo_version="+versions[mc]["neo"]]
         write(path+"/build.gradle",fmt(neo,TARGET=target,JAVA=java))
         write(path+"/src/main/resources/META-INF/neoforge.mods.toml",
-              fmt(neo_toml,MC=mc,UP=uppers[mc]))
+              fmt(neo_toml,MC=mc,UP=uppers[mc],ICONFIELD=native_icon_field(target)))
         write(path+"/src/main/java/com/nstut/packetweave/neoforge/PacketWeaveNeoForge.java",entry_neo)
         maven="maven { url = 'https://maven.neoforged.net/releases' }"
     write(path+"/settings.gradle",fmt(settings,TARGET=target,MAVEN=maven,

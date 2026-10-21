@@ -1,0 +1,12 @@
+[
+  {
+    "modid": "packetweave",
+    "name": "PacketWeave",
+    "description": "Secure, bounded data transfers for Minecraft mods.",
+    "version": "${mod_version}",
+    "mcversion": "${minecraft_version}",
+    "authorList": ["NsTut"],
+    "logoFile": "assets/packetweave/icon.png",
+    "dependencies": []
+  }
+]

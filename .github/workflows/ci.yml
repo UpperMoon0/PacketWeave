@@ -39,10 +39,13 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: |
+            8
+            25
+            17
       - uses: gradle/actions/setup-gradle@v4
       - name: Test and package loader-neutral core
-        run: ./gradlew :core:build --no-daemon
+        run: ./gradlew :core:build :core:testJava8 :core:testJava25 --no-daemon
       - name: Verify core production jar
         id: jar
         run: python3 tools/release_contract.py jar --target core --directory core/build/libs

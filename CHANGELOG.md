@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- Add native Forge 1.12.2 and Fabric/NeoForge 26.2 library artifacts while preserving the shared Java 8 API and existing 1.16.5 lanes.
+- Extend CI and artifact verification to eleven native targets, including legacy FML metadata and bytecode compatibility checks.
+- Run the shared bounds, authorization, transfer and lifecycle test suite on Java 8, 17 and 25.
+
 ## 0.1.2
 
 - Add nonblocking, bounded background file ingestion with one outstanding indexed chunk per transfer.

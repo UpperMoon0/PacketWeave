@@ -93,7 +93,7 @@ jobs:
         with:
           pattern: packetweave-*
           path: artifacts
-      - name: Check all nine jars and generate source receipt and checksums
+      - name: Check all configured jars and generate source receipt and checksums
         env:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 tools/release_contract.py bundle --artifacts artifacts --output dist --source-sha "$SOURCE_SHA"

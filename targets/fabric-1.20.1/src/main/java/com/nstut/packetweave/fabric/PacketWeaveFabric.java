@@ -4,6 +4,7 @@ import net.fabricmc.api.ModInitializer;
 public final class PacketWeaveFabric implements ModInitializer {
     public static final String MOD_ID = "packetweave";
     @Override public void onInitialize() {
-        // Packet codecs are not registered by the initial core/scaffolding release.
+        // Consumers own authenticated packets and connection-scoped transfer registries.
+        // This library intentionally registers no global network channel or session.
     }
 }

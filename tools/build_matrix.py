@@ -6,17 +6,22 @@ from pathlib import Path
 import subprocess
 import sys
 ROOT=Path(__file__).resolve().parents[1]
-TARGETS=[
-"fabric-1.16.5","forge-1.16.5",
-"fabric-1.20.1","forge-1.20.1",
-"fabric-1.21.1","neoforge-1.21.1",
-"fabric-26.1.2","neoforge-26.1.2",
-]
+from release_contract import TARGETS as TARGET_MATRIX
+TARGETS = [item["target"] for item in TARGET_MATRIX]
 def command_for(target, task):
     if target not in TARGETS: raise ValueError(target)
     root=ROOT/"targets"/target
     wrapper=root/("gradlew.bat" if os.name=="nt" else "gradlew")
     return [str(wrapper),task,"--no-daemon","--stacktrace"]
+def environment_for(target, current=None):
+    environment = dict(os.environ if current is None else current)
+    runtime = next(item["java"] for item in TARGET_MATRIX if item["target"] == target)
+    home = environment.get("JAVA" + runtime + "_HOME") or environment.get("JAVA_HOME_" + runtime + "_X64")
+    if home:
+        environment["JAVA_HOME"] = home
+        environment["PATH"] = str(Path(home)/"bin") + os.pathsep + environment.get("PATH", "")
+    return environment
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("task",choices=("build","test","compileJava","tasks"),nargs="?",default="build")
@@ -29,7 +34,7 @@ def main():
         cmd=command_for(target,args.task)
         print(target, " ".join(cmd),flush=True)
         if not args.dry_run:
-            rc=subprocess.call(cmd,cwd=str(ROOT/"targets"/target))
+            rc=subprocess.call(cmd,cwd=str(ROOT/"targets"/target),env=environment_for(target))
             if rc: return rc
     return 0
 if __name__=="__main__":sys.exit(main())

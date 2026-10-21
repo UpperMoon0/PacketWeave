@@ -21,10 +21,12 @@ It runs as a library dependency, with the same transfer core packaged for each s
 
 | Minecraft | Loaders |
 |---|---|
+| 1.12.2 | Forge |
 | 1.16.5 | Fabric, Forge |
 | 1.20.1 | Fabric, Forge |
 | 1.21.1 | Fabric, NeoForge |
 | 26.1.2 | Fabric, NeoForge |
+| 26.2 | Fabric, NeoForge |
 
 Choose the native mod file matching your Minecraft version and loader. Do not install the development-only core jar as a replacement.
 
