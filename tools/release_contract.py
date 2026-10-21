@@ -38,6 +38,11 @@ CORE_CLASSES = {
 }
 
 
+def native_icon_field(target: str) -> str:
+    """NeoForge 26.2 renders square mod-list artwork via iconFile, not legacy logoFile."""
+    return "iconFile" if target == "neoforge-26.2" else "logoFile"
+
+
 def properties(text: str) -> dict[str, str]:
     result = {}
     for line in text.splitlines():
@@ -140,7 +145,11 @@ def inspect_jar(jar: Path, target: str, version: str) -> None:
             name = "mods.toml" if loader == "forge" else "neoforge.mods.toml"
             metadata = tomllib.loads(archive.read(f"META-INF/{name}").decode("utf-8"))
             mods = metadata.get("mods", [])
-            if len(mods) == 1 and mods[0].get("logoFile") != icon_path:
+            if target == "neoforge-26.2" and (
+                "logoFile" in metadata or any("logoFile" in mod for mod in mods)
+            ):
+                raise ValueError(f"Deprecated NeoForge 26.2 logoFile metadata: {jar}")
+            if len(mods) == 1 and mods[0].get(native_icon_field(target)) != icon_path:
                 raise ValueError(f"Incorrect loader icon reference: {jar}")
             dependencies = metadata.get("dependencies", {}).get("packetweave", [])
             if len(mods) != 1 or (mods[0].get("modId"), mods[0].get("version")) != ("packetweave", version):

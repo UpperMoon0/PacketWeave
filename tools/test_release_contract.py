@@ -1,9 +1,11 @@
+import ast
 import contextlib
 import io
 import json
 from pathlib import Path
 import shutil
 import tempfile
+import tomllib
 import unittest
 import zipfile
 
@@ -54,7 +56,7 @@ class ReleaseTests(unittest.TestCase):
                 archive.writestr("mcmod.info", json.dumps([{"modid": "packetweave", "version": version, "mcversion": minecraft, "logoFile": "assets/packetweave/icon.png"}]))
             else:
                 name = "mods.toml" if loader == "forge" else "neoforge.mods.toml"
-                archive.writestr(f"META-INF/{name}", f'[[mods]]\nmodId="packetweave"\nversion="{version}"\nlogoFile="assets/packetweave/icon.png"\n[[dependencies.packetweave]]\nmodId="minecraft"\nversionRange="[{minecraft},)"\n')
+                archive.writestr(f"META-INF/{name}", f'[[mods]]\nmodId="packetweave"\nversion="{version}"\n{release.native_icon_field(target)}="assets/packetweave/icon.png"\n[[dependencies.packetweave]]\nmodId="minecraft"\nversionRange="[{minecraft},)"\n')
 
     def make_bundle(self):
         directory = Path(self.temporary.name) / "bundle"
@@ -69,6 +71,51 @@ class ReleaseTests(unittest.TestCase):
         release.verify()
         self.assertEqual(11, len(release.TARGETS))
         self.assertEqual({8, 17, 21, 25}, {int(item["runtime_java"]) for item in release.TARGETS})
+
+    def test_neoforge_262_icon_contract_preserves_older_metadata(self):
+        self.assertEqual("iconFile", release.native_icon_field("neoforge-26.2"))
+        for target in ("neoforge-26.1.2", "neoforge-1.21.1", "forge-1.20.1", "forge-1.16.5", "forge-1.12.2"):
+            self.assertEqual("logoFile", release.native_icon_field(target))
+        target = "neoforge-26.2"
+        path = self.artifacts / f"packetweave-{target}" / release.filename(target, self.version)
+        release.inspect_jar(path, target, self.version)
+
+    def test_neoforge_scaffold_renders_version_specific_icon_field(self):
+        # Load only the pure formatter and template, never execute the historical
+        # scaffold script's repository-writing top-level code.
+        tree = ast.parse((release.ROOT / "tools/scaffold_targets.py").read_text())
+        nodes = [node for node in tree.body if
+                 isinstance(node, ast.FunctionDef) and node.name == "fmt" or
+                 isinstance(node, ast.Assign) and any(isinstance(name, ast.Name) and name.id == "neo_toml" for name in node.targets)]
+        namespace = {}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), "scaffold-template", "exec"), namespace)
+        for minecraft, upper, expected in [("26.2", "26.3", "iconFile"), ("26.1.2", "26.2", "logoFile"), ("1.21.1", "1.22", "logoFile")]:
+            rendered = namespace["fmt"](namespace["neo_toml"], MC=minecraft, UP=upper,
+                                        ICONFIELD=release.native_icon_field("neoforge-" + minecraft))
+            mod = tomllib.loads(rendered)["mods"][0]
+            self.assertEqual(mod[expected], "assets/packetweave/icon.png")
+            self.assertNotIn("logoFile" if expected == "iconFile" else "iconFile", mod)
+
+    def test_neoforge_262_rejects_deprecated_logo_at_file_or_mod_level(self):
+        target = "neoforge-26.2"
+        path = self.artifacts / f"packetweave-{target}" / release.filename(target, self.version)
+        key = "META-INF/neoforge.mods.toml"
+        for location in ("replacement", "alongside-icon", "file"):
+            with self.subTest(location=location):
+                self.make_jar(path, target)
+                def add_deprecated_metadata(entries):
+                    text = entries[key].decode()
+                    logo = 'logoFile="assets/packetweave/icon.png"\n'
+                    if location == "replacement":
+                        text = text.replace("iconFile=", "logoFile=")
+                    elif location == "alongside-icon":
+                        text = text.replace("[[mods]]\n", "[[mods]]\n" + logo)
+                    else:
+                        text = logo + text
+                    entries[key] = text.encode()
+                self.rewrite_jar(path, add_deprecated_metadata)
+                with self.assertRaisesRegex(ValueError, "Deprecated NeoForge 26.2 logoFile"):
+                    release.inspect_jar(path, target, self.version)
 
     def test_requested_lanes_select_the_correct_gradle_runtime(self):
         matrix = {item["target"]: item for item in release.TARGETS}

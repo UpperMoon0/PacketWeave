@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check target matrix and that API core does not depend on a Minecraft loader."""
 from pathlib import Path
-import json, unittest
+import json, struct, tomllib, unittest
 ROOT=Path(__file__).resolve().parents[1]
 from release_contract import TARGETS as TARGET_MATRIX
 TARGETS = {item["target"]: int(item["runtime_java"]) for item in TARGET_MATRIX}
@@ -53,6 +53,17 @@ class Verify(unittest.TestCase):
         self.assertIn("net.fabricmc.fabric-loom'", fabric)
         self.assertNotIn("fabric-loom-remap", fabric)
         self.assertNotIn("mappings ", fabric)
+
+    def test_neoforge_262_uses_square_icon_without_legacy_logo(self):
+        metadata = tomllib.loads((ROOT/"targets/neoforge-26.2/src/main/resources/META-INF/neoforge.mods.toml").read_text())
+        self.assertEqual(metadata["mods"][0]["iconFile"], "assets/packetweave/icon.png")
+        self.assertNotIn("logoFile", metadata)
+        self.assertNotIn("logoFile", metadata["mods"][0])
+        png = (ROOT/"icon.png").read_bytes()
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        width, height = struct.unpack(">II", png[16:24])
+        self.assertGreater(width, 0)
+        self.assertEqual(width, height)
 
     def test_core_has_no_loader_dependencies(self):
         for file in (ROOT/"core/src/main/java").rglob("*.java"):
