@@ -93,10 +93,14 @@ public final class ChunkedTransfer {
         final long nanos = timeout.toNanos();
         return (index, total, data) -> {
             CompletableFuture<Void> dispatched = new CompletableFuture<>();
+            java.util.concurrent.atomic.AtomicReference<byte[]> payload =
+                    new java.util.concurrent.atomic.AtomicReference<>(data);
             try {
                 executor.execute(() -> {
                     if (dispatched.isDone()) return;
-                    try { sink.accept(index, total, data); dispatched.complete(null); }
+                    byte[] chunk = payload.getAndSet(null);
+                    if (chunk == null || dispatched.isDone()) return;
+                    try { sink.accept(index, total, chunk); dispatched.complete(null); }
                     catch (Exception exception) { dispatched.completeExceptionally(exception); }
                 });
                 dispatched.get(nanos, TimeUnit.NANOSECONDS);
@@ -108,6 +112,8 @@ public final class ChunkedTransfer {
             } finally {
                 // Prevent a timed-out task that has not started from sending stale chunks later.
                 dispatched.cancel(false);
+                // A stalled executor may retain this task after its worker exits.
+                payload.set(null);
             }
         };
     }

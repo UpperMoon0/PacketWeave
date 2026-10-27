@@ -88,6 +88,15 @@ needs a new transfer UUID. Missing receipts abort after ten seconds; this fails
 the transfer, never disconnects the player. Severe underlying network outages
 can still time out Minecraft itself.
 
+Dispatch reservations also limit tasks retained by a stalled game executor. A
+timed-out worker releases its active session and payload; its queued task keeps a
+reservation until it runs or its discarded queue is collected. Admission can
+therefore remain busy while an executor is stalled. The shared scheduler does not
+retain abandoned connection/executor graphs. Receipt windows open at dispatch,
+so receipts sent while a chunk is still queued cannot advance it. Receipts bind
+the authenticated connection and transfer ID; recipients must acknowledge
+honestly after committing bytes, since byte counts alone do not prove possession.
+
 ```java
 TransferRegistry transfers = new TransferRegistry(TransferLimits.defaults(),
     (id, operation) -> myPermissionService.canTransfer(id.owner(), id.namespace(), operation));

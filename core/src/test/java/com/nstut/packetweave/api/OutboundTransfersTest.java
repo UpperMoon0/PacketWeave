@@ -53,4 +53,68 @@ class OutboundTransfersTest {
         assertTrue(sends.start(new Object(),UUID.randomUUID(),file(),20000,Runnable::run,(i,n,b)->packets.incrementAndGet(),done::complete));
         assertNotNull(done.get(2,TimeUnit.SECONDS)); assertEquals(1,packets.get()); assertEquals(0,sends.activeSessions());
     }
+
+    @Test void receiptBeforeDispatchCannotReleaseTheWindow() throws Exception {
+        OutboundTransfers sends = new OutboundTransfers(1, 1, Duration.ofSeconds(2));
+        Object peer = new Object(); UUID id = UUID.randomUUID();
+        BlockingQueue<Runnable> game = new LinkedBlockingQueue<>();
+        CompletableFuture<java.io.IOException> done = new CompletableFuture<>();
+        assertTrue(sends.start(peer, id, file(), 20000, game::add, (i,n,b)->{}, done::complete));
+        Runnable first = game.poll(1, TimeUnit.SECONDS); assertNotNull(first);
+        sends.acknowledge(peer, id, 4096);
+        first.run();
+        assertNull(game.poll(100, TimeUnit.MILLISECONDS));
+        sends.acknowledge(peer, id, 4096);
+        assertNotNull(game.poll(1, TimeUnit.SECONDS));
+        sends.cancelPeer(peer);
+        assertNotNull(done.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test void timedOutDispatchReservationsBoundRetriesUntilExecutorDrains() throws Exception {
+        OutboundTransfers sends = new OutboundTransfers(2, 1, Duration.ofMillis(50));
+        Object peer = new Object(); BlockingQueue<Runnable> game = new LinkedBlockingQueue<>();
+        CompletableFuture<java.io.IOException> done = new CompletableFuture<>();
+        AtomicInteger packets = new AtomicInteger();
+        Path path = file(); UUID id = UUID.randomUUID();
+        assertTrue(sends.start(peer, id, path, 20000, game::add, (i,n,b)->packets.incrementAndGet(), done::complete));
+        assertNotNull(done.get(2, TimeUnit.SECONDS));
+        assertEquals(0, sends.activeSessions());
+        assertFalse(sends.start(peer, UUID.randomUUID(), path, 20000, game::add, (i,n,b)->{}, e->{}));
+        Object otherPeer = new Object(); CompletableFuture<java.io.IOException> otherDone = new CompletableFuture<>();
+        assertTrue(sends.start(otherPeer, UUID.randomUUID(), path, 20000, game::add, (i,n,b)->{}, otherDone::complete));
+        assertNotNull(otherDone.get(2, TimeUnit.SECONDS));
+        assertEquals(2, game.size());
+        assertFalse(sends.start(new Object(), UUID.randomUUID(), path, 20000, game::add, (i,n,b)->{}, e->{}));
+        while (!game.isEmpty()) game.take().run();
+        assertEquals(0, packets.get());
+        CompletableFuture<java.io.IOException> retry = new CompletableFuture<>();
+        assertTrue(sends.start(peer, UUID.randomUUID(), path, 20000, Runnable::run,
+                (i,n,b)->sends.cancelPeer(peer), retry::complete));
+        assertNotNull(retry.get(2, TimeUnit.SECONDS));
+    }
+
+    private java.lang.ref.WeakReference<Object> abandonedQueue(OutboundTransfers sends) throws Exception {
+        Object peer = new Object();
+        BlockingQueue<Runnable> abandoned = new LinkedBlockingQueue<>();
+        CompletableFuture<java.io.IOException> done = new CompletableFuture<>();
+        assertTrue(sends.start(peer, UUID.randomUUID(), file(), 20000, abandoned::add, (i,n,b)->{}, done::complete));
+        assertNotNull(done.get(2, TimeUnit.SECONDS));
+        assertEquals(1, abandoned.size());
+        return new java.lang.ref.WeakReference<>(peer);
+    }
+
+    @Test void discardedExecutorQueueDoesNotRetainConnectionOrGlobalBudget() throws Exception {
+        OutboundTransfers sends = new OutboundTransfers(1, 1, Duration.ofMillis(50));
+        java.lang.ref.WeakReference<Object> oldPeer = abandonedQueue(sends);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (oldPeer.get() != null && System.nanoTime() < deadline) {
+            System.gc(); Thread.sleep(10);
+        }
+        assertNull(oldPeer.get(), "Scheduler must not root an abandoned connection/executor graph");
+        CompletableFuture<java.io.IOException> done = new CompletableFuture<>();
+        Object peer = new Object();
+        assertTrue(sends.start(peer, UUID.randomUUID(), file(), 20000, Runnable::run,
+                (i,n,b)->sends.cancelPeer(peer), done::complete));
+        assertNotNull(done.get(2, TimeUnit.SECONDS));
+    }
 }

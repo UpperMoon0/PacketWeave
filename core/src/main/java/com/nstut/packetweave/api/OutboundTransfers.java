@@ -8,6 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Bounded, receipt-driven file sending. The shared instance budgets all integrations
@@ -24,6 +27,8 @@ public final class OutboundTransfers {
     private final int globalLimit, peerLimit;
     private final Duration timeout;
     private final Map<Key, Send> active = new HashMap<>();
+    // Keep stalled executor tasks bounded even after their sending workers time out.
+    private final List<PendingDispatch> pendingDispatches = new ArrayList<>();
 
     public OutboundTransfers(int globalLimit, int peerLimit, Duration timeout) {
         if (globalLimit <= 0 || peerLimit <= 0 || peerLimit > globalLimit || timeout == null
@@ -40,9 +45,17 @@ public final class OutboundTransfers {
         Key key = new Key(peer, id);
         Send send = new Send(key);
         synchronized (this) {
-            if (active.size() >= globalLimit || active.containsKey(key)) return false;
+            pruneDispatches();
+            if (active.size() >= globalLimit || active.containsKey(key)
+                    || pendingDispatches.size() >= globalLimit) return false;
             int count = 0;
             for (Key other : active.keySet()) if (other.peer == peer) count++;
+            if (count >= peerLimit) return false;
+            count = 0;
+            for (PendingDispatch other : pendingDispatches) if (other.peer.get() == peer) {
+                if (other.id.equals(id)) return false;
+                count++;
+            }
             if (count >= peerLimit) return false;
             active.put(key, send);
         }
@@ -50,14 +63,37 @@ public final class OutboundTransfers {
             IOException failure = null;
             try {
                 long[] offset = {0};
-                ChunkedTransfer.Consumer emit = ChunkedTransfer.onExecutor(dispatch, timeout, (index, total, data) -> {
+                Executor boundedDispatch = task -> {
+                    PendingDispatch reservation = new PendingDispatch(peer, id);
+                    Runnable queued = () -> {
+                        synchronized (OutboundTransfers.this) { pendingDispatches.remove(reservation); }
+                        task.run();
+                    };
+                    reservation.task = new WeakReference<>(queued);
+                    synchronized (OutboundTransfers.this) {
+                        pruneDispatches();
+                        int count = 0;
+                        for (PendingDispatch other : pendingDispatches) if (other.peer.get() == peer) count++;
+                        if (send.cancelled || pendingDispatches.size() >= globalLimit || count >= peerLimit)
+                            throw new java.util.concurrent.RejectedExecutionException("Dispatch budget exhausted");
+                        pendingDispatches.add(reservation);
+                    }
+                    try {
+                        dispatch.execute(queued);
+                    } catch (RuntimeException error) {
+                        synchronized (OutboundTransfers.this) { pendingDispatches.remove(reservation); }
+                        throw error;
+                    }
+                };
+                ChunkedTransfer.Consumer emit = ChunkedTransfer.onExecutor(boundedDispatch, timeout, (index, total, data) -> {
                     synchronized (OutboundTransfers.this) {
                         if (active.get(key) != send || send.cancelled) throw new IOException("Transfer cancelled");
                     }
+                    // Do not accept a guessed receipt while the dispatch is still queued.
+                    send.gate.expect(offset[0] + data.length);
                     sink.accept(index, total, data);
                 });
                 ChunkedTransfer.streamFile(file, CHUNK_BYTES, byteLimit, (index, total, data) -> {
-                    send.gate.expect(offset[0] + data.length);
                     emit.accept(index, total, data);
                     send.gate.await(timeout);
                     offset[0] += data.length;
@@ -97,6 +133,17 @@ public final class OutboundTransfers {
         Thread worker = send.worker; if (worker != null) worker.interrupt();
     }
     public synchronized int activeSessions() { return active.size(); }
+    private void pruneDispatches() {
+        pendingDispatches.removeIf(pending -> pending.task.get() == null);
+    }
+    // Do not root an abandoned server/executor through the shared scheduler. Live
+    // executor queues retain their tasks; discarded queues release their reservations.
+    private static final class PendingDispatch {
+        final WeakReference<Object> peer;
+        final UUID id;
+        WeakReference<Runnable> task;
+        PendingDispatch(Object peer, UUID id) { this.peer = new WeakReference<>(peer); this.id = id; }
+    }
     private static final class Send {
         final Key key; final ReceiptGate gate = new ReceiptGate();
         volatile boolean cancelled; volatile Thread worker;
