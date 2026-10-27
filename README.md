@@ -76,6 +76,18 @@ for latency isolation: a single window sends at most one chunk per round trip.
 
 ## Developer example
 
+Use `OutboundTransfers.shared().start(connection, transferId, path, byteLimit,
+gameExecutor, packetSink, completion)` for receipt-driven native transfers. The
+shared scheduler admits at most two transfers per connection and 32 globally,
+with no waiting work queue. Each sends at most one 4 KiB chunk before waiting for
+an authenticated cumulative-byte receipt. Feed native receipt packets to
+`acknowledge(connection, transferId, bytes)`; a negative value rejects a transfer.
+Cancel with `cancel` or `cancelPeer` on lifecycle changes. Use the same actual
+connection object in every integration so their budgets are shared. Each retry
+needs a new transfer UUID. Missing receipts abort after ten seconds; this fails
+the transfer, never disconnects the player. Severe underlying network outages
+can still time out Minecraft itself.
+
 ```java
 TransferRegistry transfers = new TransferRegistry(TransferLimits.defaults(),
     (id, operation) -> myPermissionService.canTransfer(id.owner(), id.namespace(), operation));
