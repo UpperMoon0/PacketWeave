@@ -34,7 +34,7 @@ TARGETS = [
 CORE_CLASSES = {
     "TransferRegistry", "TransferSession", "TransferId", "TransferLimits",
     "TransferOperation", "TransferAuthorizer", "TransferDigest", "ChunkedTransfer",
-    "ContextualTransferRegistry", "BoundedFileReceiver", "ReceiptGate",
+    "ContextualTransferRegistry", "BoundedFileReceiver", "ReceiptGate", "OutboundTransfers",
 }
 
 
