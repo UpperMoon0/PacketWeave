@@ -93,6 +93,34 @@ class OutboundTransfersTest {
         assertNotNull(retry.get(2, TimeUnit.SECONDS));
     }
 
+
+    @Test void cancellationDuringLastAcknowledgedDispatchCannotReportSuccess() throws Exception {
+        OutboundTransfers sends = new OutboundTransfers(1, 1, Duration.ofSeconds(2));
+        Object peer = new Object(); UUID id = UUID.randomUUID();
+        Path finalChunk = Files.write(dir.resolve("last-receipt"), new byte[]{42});
+        CountDownLatch sinkEntered = new CountDownLatch(1);
+        CountDownLatch sinkReleased = new CountDownLatch(1);
+        CompletableFuture<java.io.IOException> finished = new CompletableFuture<>();
+        assertTrue(sends.start(peer, id, finalChunk, 64, Runnable::run, (index, total, data) -> {
+            assertEquals(0, index);
+            assertEquals(1, total);
+            sinkEntered.countDown();
+            // A deliberately slow final dispatch; ignore worker interruption to
+            // make the completion path inspect cancellation rather than rely on it.
+            while (sinkReleased.getCount() != 0) {
+                try { sinkReleased.await(); }
+                catch (InterruptedException ignored) { }
+            }
+        }, finished::complete));
+        assertTrue(sinkEntered.await(1, TimeUnit.SECONDS));
+        sends.acknowledge(peer, id, 1);  // final receipt is already available
+        sends.cancel(peer, id);          // cancel while the session is still active
+        sinkReleased.countDown();
+        assertNotNull(finished.get(2, TimeUnit.SECONDS),
+                "An accepted cancellation must not complete the final chunk successfully");
+        assertEquals(0, sends.activeSessions());
+    }
+
     private java.lang.ref.WeakReference<Object> abandonedQueue(OutboundTransfers sends) throws Exception {
         Object peer = new Object();
         BlockingQueue<Runnable> abandoned = new LinkedBlockingQueue<>();
