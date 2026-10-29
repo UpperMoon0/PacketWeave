@@ -1,6 +1,6 @@
 # Releasing PacketWeave
 
-The pipeline follows the Simply Screens release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports all eleven independent native targets plus the loader-neutral core.
+The pipeline follows the verified release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports the configured native targets plus the loader-neutral core.
 
 ## Configuration
 
@@ -68,4 +68,6 @@ The loader mods expose the functional core API without registering an independen
 
 ## Dependent release order
 
-Release PacketWeave 0.1.1 before Simply Screens 0.8.10. Verify all five native artifacts needed by Screens (Fabric/Forge 1.20.1, Fabric/NeoForge 1.21.1, NeoForge 26.1.2), successful upload receipts, and public CurseForge approval/download availability before publishing the dependent Screens files. An accepted upload or GitHub release does not establish CurseForge moderation status. Screens uses the standalone API, requires PacketWeave on both sides, and must not package duplicate core classes.
+Publish PacketWeave **before** releasing mods that require its API. For each consumer, verify the exact Minecraft and loader combinations it supports, the matching native PacketWeave artifacts, their hashes and upload receipts, and public availability after CurseForge moderation where applicable. A successful build, accepted upload or GitHub release alone does not establish public download availability.
+
+Verify that each consumer's loader metadata and CurseForge relations declare PacketWeave as a required dependency with the correct minimum API version, on every side where its packet integration runs. Consumers must not ship duplicate unrelocated core classes. Exercise native end-to-end transfers, disconnects, receipt rejection and timeout recovery in consuming mods before shipping their releases; PacketWeave's own CI does not substitute for runtime acceptance.
