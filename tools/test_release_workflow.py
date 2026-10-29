@@ -65,7 +65,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.addCleanup(output.unlink, missing_ok=True)
         output.write_text("")
         result = subprocess.run(
-            ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c",
+            [shutil.which("bash") or "bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c",
              textwrap.dedent("\n".join(lines))], cwd=self.root, text=True,
             capture_output=True, env={**os.environ, **variables, "GITHUB_OUTPUT": str(output)})
         values = dict(line.split("=", 1) for line in output.read_text().splitlines())

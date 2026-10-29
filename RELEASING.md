@@ -1,6 +1,6 @@
 # Releasing PacketWeave
 
-The pipeline follows the Simply Screens release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports all eleven independent native targets plus the loader-neutral core.
+The pipeline follows the verified release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports the configured native targets plus the loader-neutral core.
 
 ## Configuration
 
@@ -23,10 +23,10 @@ The Java package/mod ID stays `packetweave`; the project ID above identifies the
 
 ## Preparing a version
 
-1. Set `mod_version` in the root `gradle.properties` and all eleven `targets/*/gradle.properties` files. The core reads the root version directly.
+1. Set `mod_version` in the root `gradle.properties` and every `targets/*/gradle.properties` file. The core reads the root version directly.
 2. Add `changelog/<version>.md` and update `CHANGELOG.md`.
 3. Set root `release_type` to `alpha`, `beta` or `release`. Alpha/beta also mark the GitHub release as a prerelease.
-4. Open or update the PR. CI checks version consistency, changelog presence, the core tests, eleven native builds, expanded loader metadata, packaged core classes and the MIT license.
+4. Open or update the PR. CI checks version consistency, changelog presence, the core tests, all configured native builds, expanded loader metadata, packaged core classes and the MIT license.
 5. Merge only after the required checks pass. A version change on `main` runs **Build and Release Mod**. A root properties change without a version change does not publish again.
 
 The release dry run runs on PRs that change release tooling/configuration. It executes the same reusable build workflow and assembles the full bundle, but publishing is disabled for PRs and non-main branches.
@@ -42,9 +42,9 @@ The `v<version>` tag must point to the tested source commit. The workflow refuse
 
 ## Release assets and upload receipts
 
-The verified release bundle contains eleven runnable loader jars, `packetweave-core-<version>.jar`, `SHA256SUMS` and `release-manifest.json`. Source/dev jars are excluded. The manifest binds every jar's SHA-256 to the source commit. All twelve jars must verify before publishing begins.
+The verified release bundle contains the configured runnable native loader jars, `packetweave-core-<version>.jar`, `SHA256SUMS` and `release-manifest.json`. Source/dev jars are excluded. The manifest binds every jar's SHA-256 to the source commit. Every jar in the release manifest must verify before publishing begins.
 
-Only the eleven loader jars go to CurseForge. Every Minecraft, loader, Java, Client and Server tag is checked before the first upload. Each successful upload must return a positive file ID; success is recorded with the jar's hash in a workflow artifact.
+Only the native loader jars go to CurseForge. Every Minecraft, loader, Java, Client and Server tag is checked before the first upload. Each successful upload must return a positive file ID; success is recorded with the jar's hash in a workflow artifact.
 
 Use **Re-run failed jobs** to resume a partially completed upload within the same workflow run. Confirmed receipts from the preceding run attempt prevent uploading the same jars again. A failed or timed-out upload request is not automatically repeated: check the CurseForge project if its outcome was ambiguous. Receipts are only created for confirmed file IDs, and text such as “already uploaded” is not treated as proof of success.
 
@@ -68,4 +68,6 @@ The loader mods expose the functional core API without registering an independen
 
 ## Dependent release order
 
-Release PacketWeave 0.1.1 before Simply Screens 0.8.10. Verify all five native artifacts needed by Screens (Fabric/Forge 1.20.1, Fabric/NeoForge 1.21.1, NeoForge 26.1.2), successful upload receipts, and public CurseForge approval/download availability before publishing the dependent Screens files. An accepted upload or GitHub release does not establish CurseForge moderation status. Screens uses the standalone API, requires PacketWeave on both sides, and must not package duplicate core classes.
+Publish PacketWeave **before** releasing mods that require its API. For each consumer, verify the exact Minecraft and loader combinations it supports, the matching native PacketWeave artifacts, their hashes and upload receipts, and public availability after CurseForge moderation where applicable. A successful build, accepted upload or GitHub release alone does not establish public download availability.
+
+Verify that each consumer's loader metadata and CurseForge relations declare PacketWeave as a required dependency with the correct minimum API version, on every side where its packet integration runs. Consumers must not ship duplicate unrelocated core classes. Exercise native end-to-end transfers, disconnects, receipt rejection and timeout recovery in consuming mods before shipping their releases; PacketWeave's own CI does not substitute for runtime acceptance.

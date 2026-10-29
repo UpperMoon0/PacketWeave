@@ -14,7 +14,7 @@ It is designed to be useful for media, structure files, and other mod-defined pa
 | 26.1.2 | yes | - | yes | 25 |
 | 26.2 | yes | - | yes | 25 |
 
-Eleven independent native projects live under `targets/`. This is intentional: ForgeGradle 3/6, ModDevGradle 2, obfuscated Fabric Loom, and non-obfuscated Fabric Loom must be able to evolve separately.
+Independent native projects live under `targets/`. This is intentional: ForgeGradle 3/6, ModDevGradle 2, obfuscated Fabric Loom, and non-obfuscated Fabric Loom must be able to evolve separately.
 
 **No Architectury API or Architectury Loom dependency.** The implementation uses native loader toolchains and a shared Java 8-compatible core from `core/src/main/java`. The core sources are compiled into each target jar; no separate core jar is needed at runtime.
 
@@ -76,6 +76,27 @@ for latency isolation: a single window sends at most one chunk per round trip.
 
 ## Developer example
 
+Use `OutboundTransfers.shared().start(connection, transferId, path, byteLimit,
+gameExecutor, packetSink, completion)` for receipt-driven native transfers. The
+shared scheduler admits at most two transfers per connection and 32 globally,
+with no waiting work queue. Each sends at most one 4 KiB chunk before waiting for
+an authenticated cumulative-byte receipt. Feed native receipt packets to
+`acknowledge(connection, transferId, bytes)`; a negative value rejects a transfer.
+Cancel with `cancel` or `cancelPeer` on lifecycle changes. Use the same actual
+connection object in every integration so their budgets are shared. Each retry
+needs a new transfer UUID. Missing receipts abort after ten seconds; this fails
+the transfer, never disconnects the player. Severe underlying network outages
+can still time out Minecraft itself.
+
+Dispatch reservations also limit tasks retained by a stalled game executor. A
+timed-out worker releases its active session and payload; its queued task keeps a
+reservation until it runs or its discarded queue is collected. Admission can
+therefore remain busy while an executor is stalled. The shared scheduler does not
+retain abandoned connection/executor graphs. Receipt windows open at dispatch,
+so receipts sent while a chunk is still queued cannot advance it. Receipts bind
+the authenticated connection and transfer ID; recipients must acknowledge
+honestly after committing bytes, since byte counts alone do not prove possession.
+
 ```java
 TransferRegistry transfers = new TransferRegistry(TransferLimits.defaults(),
     (id, operation) -> myPermissionService.canTransfer(id.owner(), id.namespace(), operation));
@@ -104,7 +125,7 @@ Every target has its own Gradle wrapper. Core and target builds are independent 
 
 ## Releases and publishing
 
-CI tests the core and release tooling, builds all eleven targets, and checks the production jars' metadata, core classes and MIT license. PRs that change release configuration also run the complete release bundle dry run.
+CI tests the core and release tooling, builds all configured native targets, and checks the production jars' metadata, core classes and MIT license. PRs that change release configuration also run the complete release bundle dry run.
 
 Changing root `mod_version` on `main` triggers verified GitHub release assets and optional CurseForge uploads. Configure the repository variable `CURSEFORGE_PROJECT_ID` and secret `CURSEFORGE_API_TOKEN` when the listing is available. GitHub releases work while the project ID is unset; manual publishing on `main` can upload the same version after it is supplied.
 
