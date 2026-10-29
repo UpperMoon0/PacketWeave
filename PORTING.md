@@ -39,14 +39,22 @@ Existing 1.20.1, 1.21.1 and 26.1.2 artifacts remain independent and unchanged.
 
 ## Security, wire and lifecycle compatibility
 
-The public API and its existing behavior remain unchanged. A loader entrypoint
-makes these classes discoverable as a dependency but deliberately owns no global
-registry, executor, packet channel, or disk receiver. This avoids cross-world
-session leaks and adding a second protocol alongside consuming mods.
+Existing public API behavior remains unchanged. A loader entrypoint
+makes these classes discoverable as a dependency but deliberately owns no
+independent packet channel or disk receiver. The opt-in shared outbound scheduler
+coordinates native consumers without installing its own wire protocol. Consumers
+still own their packet codecs and connection lifecycle.
 
 Consumers must:
 
 - Bind transfer owners and receipts to authenticated connections, not packet UUIDs.
+- Prefer `OutboundTransfers.shared()` for new receipt-paced native outbound transfers.
+  Its connection-identity, per-peer and global budgets compose across consumers.
+  A single chunk is outstanding until the authenticated receiver acknowledges
+  committed cumulative bytes; cancel via `cancel` or `cancelPeer` on lifecycle
+  changes. Reuse the actual authenticated connection object and a fresh transfer ID
+  for each retry. Dispatch-only `ChunkedTransfer` helpers do not provide remote
+  backpressure.
 - Keep their existing packet field order, bounds and chunk geometry; use
   `beginBounded` only when an exact-length header is unavailable.
 - Apply trusted limits and authorization on admission, each chunk, and completion.
@@ -70,8 +78,14 @@ Artifact checks require all eleven top-level core classes; JVM tests exercise th
 actual implementations. Header checks are not a full JVM bytecode verifier.
 CI requests all three runtimes and builds/verifies every native target.
 
+Receipt-paced sender tests cover backpressure, timeout, cancellation and
+authentication using controlled executors. Passing core tests and native builds
+do **not** constitute impaired-network Minecraft runtime qualification; clients
+and dedicated servers must still be tested for disconnects and gameplay progress
+under packet loss and high latency in each consuming integration.
+
 Compile/package checks and core unit tests do not establish that a Minecraft
 client or dedicated server started successfully. Consuming mods still need live
 end-to-end transfer tests on each requested loader, including disconnect,
-rejection, stale receipt and server restart cases. No release or merge is part
-of this porting change.
+rejection, stale receipt and server restart cases. Runtime acceptance and dependent releases remain the responsibility
+of the consuming mod integrations.
