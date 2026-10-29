@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5
+
+- Add shared receipt-paced outbound sends with a 4 KiB window and connection/global admission limits.
+- Bind cumulative receipts to authenticated connections and reject stale or out-of-window receipts.
+- Bound timed-out executor reservations without retaining abandoned connection graphs or queued payload bytes.
+- Make cancellation and terminal success mutually exclusive under one session lock, including after the final receipt.
+- Test slow receivers, dispatch timeouts, cancellation, receipt authentication, and budget release.
+- Preserve the previous dispatch-only helpers without promising remote backpressure.
+
 ## 0.1.4
 
 - Add native Forge 1.12.2 and Fabric/NeoForge 26.2 library artifacts while preserving the shared Java 8 API and existing 1.16.5 lanes.
