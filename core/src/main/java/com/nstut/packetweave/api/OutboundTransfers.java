@@ -101,7 +101,13 @@ public final class OutboundTransfers {
             } catch (IOException error) { failure = error; }
             catch (RuntimeException error) { failure = new IOException("Transfer failed", error); }
             finally {
-                synchronized (OutboundTransfers.this) { active.remove(key, send); }
+                // Cancellation and successful termination share one atomic boundary.
+                // A cancel accepted before removal must never publish success,
+                // including when the final receipt already released the gate.
+                synchronized (OutboundTransfers.this) {
+                    if (send.cancelled && failure == null) failure = new IOException("Transfer cancelled");
+                    active.remove(key, send);
+                }
             }
             try { completion.finished(failure); } catch (RuntimeException ignored) { }
         }, "PacketWeave acknowledged send");
