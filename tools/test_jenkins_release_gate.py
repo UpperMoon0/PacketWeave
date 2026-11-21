@@ -81,6 +81,11 @@ class JenkinsReleaseGateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             decide(tag_sha=M)
         self.assertTrue(decide(tag_sha=S)["publish"])
+        self.assertFalse(decide(event="pull_request", ref="refs/pull/42/head",
+                                main_sha=M, prior_version=None,
+                                tag_sha=M)["publish"])
+        self.assertFalse(decide(event="workflow_dispatch", prior_version=None,
+                                changed_paths=[], tag_sha=M)["publish"])
 
     def test_invalid_sha_and_source_zero_denied(self):
         for value in ("0" * 40, "abc", "A" * 40):
