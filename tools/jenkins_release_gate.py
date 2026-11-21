@@ -75,8 +75,6 @@ def release_decision(*, event: str, ref: str, source_sha: str, main_sha: str,
         raise ValueError("Non-dry-run dispatch requires the exact trusted main commit")
     if event != "pull_request" and ref == "refs/heads/main" and not valid_sha(main_sha):
         raise ValueError("Canonical main SHA is required")
-    if tag_sha is not None and (not valid_sha(tag_sha) or tag_sha != source_sha):
-        raise ValueError("Existing version tag belongs to another source")
     eligible = relevant(event, changed_paths)
     if event == "push" and eligible and prior_version is None:
         raise ValueError("Version comparison requires an accessible prior commit")
@@ -86,6 +84,8 @@ def release_decision(*, event: str, ref: str, source_sha: str, main_sha: str,
             event == "workflow_dispatch" and not dry_run and ref == "refs/heads/main"
         )
     ))
+    if publish and tag_sha is not None and (not valid_sha(tag_sha) or tag_sha != source_sha):
+        raise ValueError("Existing version tag belongs to another source")
     return {
         "event": event, "source_sha": source_sha, "version": version,
         "release_type": release_type, "eligible": eligible,
@@ -133,7 +133,7 @@ def main() -> None:
     parser.add_argument("--ref", required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--main-sha", default="")
-    parser.add_argument("--head-repository", default=REPOSITORY)
+    parser.add_argument("--head-repository", default="")
     parser.add_argument("--before", default="")
     parser.add_argument("--changed-paths-json", default="[]")
     parser.add_argument("--dry-run", choices=("true", "false"), default="true")
@@ -152,7 +152,7 @@ def main() -> None:
         main_sha=args.main_sha, changed_paths=paths,
         version=values["mod_version"], release_type=values["release_type"],
         prior_version=prior, dry_run=args.dry_run == "true",
-        head_repository=args.head_repository,
+        head_repository=args.head_repository or REPOSITORY,
         tag_sha=version_tag(root, values["mod_version"]),
     )
     print(json.dumps(decision, sort_keys=True))
