@@ -3,7 +3,7 @@
 nstutGradle(
     // nstut-ci's ci-memory-large default is not present on the qualified
     // 2 GiB general Linux executor; the library explicitly permits this pool.
-    agentLabel: 'ci-linux-container',
+    agentLabel: 'ci-role-general && ci-os-linux',
     verify: '''python3 -m unittest discover -s tools -p 'test_*.py' -v
 python3 tools/verify_structure.py
 python3 tools/release_contract.py plan
