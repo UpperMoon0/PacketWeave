@@ -1,9 +1,9 @@
 @Library('nstut-ci') _
 
 nstutGradle(
-    // Use the qualified Linux general pool. Cloud-only and oversized
-    // executor labels are retired; Kaggle admission certifies native workers.
-    agentLabel: 'ci-role-general && ci-os-linux',
+    // Use the reviewed cloud-1 primary Linux container executor. Optional
+    // Kaggle overflow must not run this source-pinned native migration job.
+    agentLabel: 'ci-linux-container',
     verify: '''python3 -m unittest discover -s tools -p 'test_*.py' -v
 python3 tools/verify_structure.py
 python3 tools/release_contract.py plan
