@@ -1,73 +1,112 @@
-# Releasing PacketWeave
+# PacketWeave — Jenkins release operations
 
-The pipeline follows the verified release flow: version change, verification, native builds, CurseForge uploads, then a GitHub release. It supports the configured native targets plus the loader-neutral core.
+PacketWeave versioning, builds, checks and publishing are being migrated to
+**Jenkins-only** execution under [KAN-73](https://nstut.atlassian.net/browse/KAN-73).
+GitHub Actions execution is disabled at repository level; never re-enable it,
+depend on its status/artifacts, or store a new publishing secret there.
 
-## Configuration
+## Native, credential-free verification
 
-Use [`curseforge.md`](curseforge.md) as the CurseForge project description. It is maintained separately from each version's release changelog; the upload workflow does not update the project description.
+The reviewed `Jenkinsfile` uses central `nstut-ci` and a qualified general
+Linux executor to run Python release-contract tests, structure verification,
+the Java 8/25 core tests and all 11 native loader builds. It archives exact
+source evidence and verifies runtime/loader metadata, MIT license and
+production JARs. `Jenkinsfile.release` is a **candidate** credential-free
+13-stage dry run: same 12 build targets followed by full source-pinned
+bundle verification, including `release-manifest.json` and `SHA256SUMS`.
+Neither Jenkinsfile injects publishing secrets or writes GitHub/CurseForge
+releases.
 
-In GitHub repository **Settings → Secrets and variables → Actions**, add these when the CurseForge project is available:
+**Current limitation:** the signed release webhook event route, strict
+Jenkins PR/check authority, protected publisher, receipt persistence,
+rollbacks and physical retirement of legacy workflow YAMLs are not yet
+fully accepted. Do not infer an authorized publication from a successful
+build or from this configuration document.
 
-| Kind | Name | Value |
-|---|---|---|
-| Repository variable | `CURSEFORGE_PROJECT_ID` | `1735096` (PacketWeave) |
-| Repository secret | `CURSEFORGE_API_TOKEN` | CurseForge upload API token |
+## Production credential source of truth
 
-There is no placeholder or borrowed project ID. Without `CURSEFORGE_PROJECT_ID`, the external upload job is skipped and GitHub releases still work. Once the ID is configured, a missing token fails publishing rather than silently skipping it.
+Only a **root-owned NsTut-CICD protected publishing broker** may retrieve
+secrets, and only at the time of an independently verified publication.
+The bound reader lives at
+`UpperMoon0/NsTut-CICD/jenkins/migration/packetweave/kv_credentials.py`,
+using the existing host certificate-backed
+`/usr/local/lib/nstut-jenkins/artifacts/identity.py:vault()`.
+Azure Key Vault is `https://nstutcommonkv.vault.azure.net`.
 
-PacketWeave's [CurseForge project](https://www.curseforge.com/minecraft/mc-mods/packetweave) has project ID **1735096**. The repository variable is configured; the upload token must be added as a repository secret before publishing. New projects remain unavailable publicly until CurseForge moderation approves them.
+| Purpose | Fixed Key Vault secret |
+| --- | --- |
+| CurseForge upload for PacketWeave | `curseforge-api-token` |
+| GitHub tag/release and asset write for PacketWeave only | `packetweave-github-release-token` |
 
-GitHub releases use the workflow's built-in `GITHUB_TOKEN` with `contents: write` limited to the release job. No personal token is required.
+CurseForge project **1735096** is a public, pinned project ID and **not**
+a credential. The shared CurseForge token has been read successfully from
+Key Vault by the protected NsTut-CICD certificate identity. The dedicated
+GitHub Release token is currently unavailable to that identity: provision a
+fine-grained credential for `UpperMoon0/PacketWeave` with **Contents: Read
+and write**, store it at the fixed Key Vault name and grant the existing
+protected identity `Key Vault Secrets User` on **that individual secret**.
+Until the secret and actual publisher authorization both pass, GitHub release
+publication must fail closed.
 
-The Java package/mod ID stays `packetweave`; the project ID above identifies the CurseForge listing. PacketWeave does not need Screens' Architectury, OpenUI or Fabric API publishing relations.
+The host publisher must not use ambient `gh` login, a local PAT,
+`CURSEFORGE_API_TOKEN`, `GITHUB_TOKEN`, GitHub Actions secrets, Jenkins
+credential bindings, or another repository's release identity as fallback.
+No root or publishing secret is available in a general Linux build worker.
+The repository's historic direct CLI upload path is intentionally disabled;
+an independent, bounded, reviewed central host integration is required.
 
-## Preparing a version
+## Prepare a release
 
-1. Set `mod_version` in the root `gradle.properties` and every `targets/*/gradle.properties` file. The core reads the root version directly.
-2. Add `changelog/<version>.md` and update `CHANGELOG.md`.
-3. Set root `release_type` to `alpha`, `beta` or `release`. Alpha/beta also mark the GitHub release as a prerelease.
-4. Open or update the PR. CI checks version consistency, changelog presence, the core tests, all configured native builds, expanded loader metadata, packaged core classes and the MIT license.
-5. Merge only after the required checks pass. A version change on `main` runs **Build and Release Mod**. A root properties change without a version change does not publish again.
+1. Update `mod_version` in root `gradle.properties` and every
+   `targets/*/gradle.properties` file. Keep loader and Minecraft versions
+   consistent with the canonical release contract.
+2. Write `changelog/<version>.md`, update `CHANGELOG.md`, and choose
+   `release_type` = `alpha`, `beta`, or `release`.
+3. Run the credential-free Python suites, structure checks, core Java 8/25
+   tests, and all native loader targets on approved Jenkins Linux runners.
+4. Only a correctly admitted canonical `main` version-change event or
+   separately authenticated non-dry-run manual request may become a
+   *publication candidate*. All PRs and default manual requests are dry runs.
+5. Before any provider call, independently verify Jenkins build number,
+   trusted exact source/control SHAs, complete native artifacts, release
+   manifest, SHA-256 hashes, changelog and immutable `v<version>` tag.
+   A preexisting version tag for another commit must be rejected.
+6. On the protected host only, fetch the one allowed Key Vault credential
+   for the provider being called, check provider versions/game tags and
+   reconcile preserved upload/release receipts before retrying. No untrusted
+   build code may execute under the publisher credential.
 
-The release dry run runs on PRs that change release tooling/configuration. It executes the same reusable build workflow and assembles the full bundle, but publishing is disabled for PRs and non-main branches.
+The bundle includes the 11 runnable native loader JARs, the
+`packetweave-core-<version>.jar` development artifact,
+`SHA256SUMS` and `release-manifest.json`. Source JARs are excluded.
+CurseForge receives only runnable loader JARs. Every confirmed CurseForge
+upload has a positive file ID and matching SHA-256 stored in a durable
+receipt. A timeout or ambiguous HTTP response **must not** trigger an
+automatic duplicate upload; inspect project state and reconcile the original
+receipt. Provider moderation/public visibility must be verified separately.
 
-## Manual runs and supplying the project ID later
+## Local, credential-free verification
 
-Use **Actions → Build and Release Mod → Run workflow** on `main`:
-
-- Leave `dry_run` enabled to build and inspect the artifacts without publishing.
-- Disable `dry_run` to publish the current version, including uploading to CurseForge after adding the project ID/token. This works even if the GitHub release was previously created while the project ID was unset.
-
-The `v<version>` tag must point to the tested source commit. The workflow refuses to move a version tag to different code; bump the version for new code.
-
-## Release assets and upload receipts
-
-The verified release bundle contains the configured runnable native loader jars, `packetweave-core-<version>.jar`, `SHA256SUMS` and `release-manifest.json`. Source/dev jars are excluded. The manifest binds every jar's SHA-256 to the source commit. Every jar in the release manifest must verify before publishing begins.
-
-Only the native loader jars go to CurseForge. Every Minecraft, loader, Java, Client and Server tag is checked before the first upload. Each successful upload must return a positive file ID; success is recorded with the jar's hash in a workflow artifact.
-
-Use **Re-run failed jobs** to resume a partially completed upload within the same workflow run. Confirmed receipts from the preceding run attempt prevent uploading the same jars again. A failed or timed-out upload request is not automatically repeated: check the CurseForge project if its outcome was ambiguous. Receipts are only created for confirmed file IDs, and text such as “already uploaded” is not treated as proof of success.
-
-GitHub publication waits for all configured CurseForge uploads to finish. A green PR/build or an accepted upload does not prove that CurseForge moderation has approved the files.
-
-If a previous attempt's receipt artifact is missing, the retry stops before uploading. Inspect the project before starting a fresh run; do not bypass missing receipts after a partially completed publication.
-
-## Local verification
-
-```powershell
-python tools/release_contract.py verify
-python -m unittest discover -s tools -p 'test_*.py' -v
-python tools/verify_structure.py
-.\gradlew.bat :core:build --no-daemon
-python tools/build_matrix.py build --all
+```sh
+python3 tools/release_contract.py verify
+python3 -m unittest discover -s tools -p 'test_*.py' -v
+python3 tools/verify_structure.py
+./gradlew :core:build :core:testJava8 :core:testJava25 --no-daemon
+python3 tools/build_matrix.py build --all
 ```
 
-Gradle runtime requirements remain Java 8 for Forge 1.12.2; Java 17 for the other Forge targets and the core, and Java 25 for Fabric and NeoForge targets; native bytecode targets remain Java 8/17/21/25 according to Minecraft version.
+Requires matching pinned Java toolchains for legacy and modern loader Gradle
+wrappers. These are not publishing commands and require no provider token.
 
-The loader mods expose the functional core API without registering an independent wire protocol. The release workflow verifies packaging and the core; it does not replace consuming mods' live networking tests.
+## Rollback and dependency order
 
-## Dependent release order
+If native Jenkins release or protected publication acceptance fails, disable
+that protected route; preserve the previous sealed Jenkins archive, provider
+receipts and Key Vault secrets. Do **not** revive GitHub Actions or restore
+its repository secrets. Do not delete any backup as part of this migration.
 
-Publish PacketWeave **before** releasing mods that require its API. For each consumer, verify the exact Minecraft and loader combinations it supports, the matching native PacketWeave artifacts, their hashes and upload receipts, and public availability after CurseForge moderation where applicable. A successful build, accepted upload or GitHub release alone does not establish public download availability.
-
-Verify that each consumer's loader metadata and CurseForge relations declare PacketWeave as a required dependency with the correct minimum API version, on every side where its packet integration runs. Consumers must not ship duplicate unrelocated core classes. Exercise native end-to-end transfers, disconnects, receipt rejection and timeout recovery in consuming mods before shipping their releases; PacketWeave's own CI does not substitute for runtime acceptance.
+PacketWeave versions should be released **before** consumers that require
+their API. Confirm exact Minecraft/loader combinations and minimum
+PacketWeave dependency metadata on both client and server, plus published
+asset hashes and availability. PacketWeave unit CI alone does not prove live
+network integration in consumer mods.
