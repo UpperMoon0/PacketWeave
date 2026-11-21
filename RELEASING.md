@@ -40,13 +40,15 @@ Azure Key Vault is `https://nstutcommonkv.vault.azure.net`.
 
 CurseForge project **1735096** is a public, pinned project ID and **not**
 a credential. The shared CurseForge token has been read successfully from
-Key Vault by the protected NsTut-CICD certificate identity. The dedicated
-GitHub Release token is currently unavailable to that identity: provision a
-fine-grained credential for `UpperMoon0/PacketWeave` with **Contents: Read
-and write**, store it at the fixed Key Vault name and grant the existing
-protected identity `Key Vault Secrets User` on **that individual secret**.
-Until the secret and actual publisher authorization both pass, GitHub release
-publication must fail closed.
+Key Vault by the protected NsTut-CICD certificate identity. The existing GitHub App `nstut-jenkins-typed-events` (installation
+`183318189`) already has **Contents: write** and access to PacketWeave.
+The protected publisher reads the **existing**
+`nstut-jenkins-github-app-private-key` from Key Vault and mints a
+short-lived installation token scoped to `UpperMoon0/PacketWeave` only.
+The returned repo ID, permission scope and expiry must be verified before
+use. Do **not** provision or retain a PacketWeave PAT. A credential alone
+does not authorize publication: signed source evidence, immutable tag,
+native Jenkins acceptance and idempotent receipt checks must also pass.
 
 The host publisher must not use ambient `gh` login, a local PAT,
 `CURSEFORGE_API_TOKEN`, `GITHUB_TOKEN`, GitHub Actions secrets, Jenkins
