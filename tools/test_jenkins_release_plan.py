@@ -40,7 +40,7 @@ class ReleasePlanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
             (root/'dist').mkdir()
-            with self.assertRaises(Exception):
+            with self.assertRaisesRegex(ValueError, "dist must not already exist"):
                 offline_bundle(root,root/'dist')
 
 
