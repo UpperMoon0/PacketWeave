@@ -1,0 +1,17 @@
+@Library('nstut-ci') _
+
+// KAN-73: candidate native release dry-run only. The reviewed-main CI library
+// rejects fork PR code and never injects publish credentials into a worker.
+// Real publication needs separately validated, protected host-owned authority.
+nstutGradle(
+    agentLabel: 'ci-linux-container',
+    branch: 'main',
+    verify: '''python3 -m unittest discover -s tools -p 'test_*.py' -v
+python3 tools/verify_structure.py
+python3 tools/release_contract.py verify
+python3 tools/jenkins_artifacts.py evidence''',
+    plan: 'python3 tools/jenkins_release_plan.py',
+    tests: '**/build/test-results/**/*.xml',
+    artifacts: 'ci-source-evidence.json,dist/*.jar,dist/SHA256SUMS,dist/release-manifest.json',
+    diagnostics: '**/build/reports/**'
+)
