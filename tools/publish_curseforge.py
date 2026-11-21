@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import sys
@@ -106,9 +105,9 @@ def save_receipt(path: Path, receipt: dict) -> None:
 def publish(directory: Path, receipt_path: Path, project_id: str, token: str, source_sha: str,
             root: Path = ROOT, api=request_json) -> dict:
     if not re.fullmatch(r"[1-9][0-9]*", project_id):
-        raise ValueError("Set repository variable CURSEFORGE_PROJECT_ID to the numeric project ID")
+        raise ValueError("Invalid protected CurseForge project ID")
     if not token:
-        raise ValueError("Missing required GitHub secret CURSEFORGE_API_TOKEN")
+        raise ValueError("Missing protected Key Vault CurseForge credential")
     manifest, values = release_assets(directory, source_sha, root)
     changelog = (root / "changelog" / f"{values['mod_version']}.md").read_text(encoding="utf-8")
     plans = {target["target"]: metadata(target, values["mod_version"], values["release_type"], changelog) for target in TARGETS}
@@ -149,12 +148,20 @@ def publish(directory: Path, receipt_path: Path, project_id: str, token: str, so
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    # Legacy GitHub Actions is permanently disabled. An arbitrary CLI
+    # environment or repository secret cannot authorize provider writes.
+    # Only the separately reviewed, root-owned NsTut-CICD protected host
+    # may call publish() with purpose-bound Key Vault material after checking
+    # signed Jenkins event, exact-source native artifacts and durable receipts.
+    parser = argparse.ArgumentParser(
+        description="PacketWeave protected host publisher API (CLI disabled)"
+    )
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
-    args = parser.parse_args()
-    publish(args.bundle, args.receipt, os.environ.get("CURSEFORGE_PROJECT_ID", ""),
-            os.environ.get("CURSEFORGE_API_TOKEN", ""), os.environ.get("SOURCE_SHA", ""))
+    parser.parse_args()
+    raise ValueError(
+        "Direct CLI publishing disabled: NsTut-CICD Key Vault publisher required"
+    )
 
 
 if __name__ == "__main__":

@@ -121,14 +121,14 @@ python tools/build_matrix.py build --all
 
 Use Java 8 to run the Forge 1.12.2 Gradle 5.6.4 build, Java 17 to run the Gradle 8.x Forge builds, and Java 25 for Fabric and NeoForge builds. Modern Gradle targets also need their declared compile toolchains. The core suite can additionally run with `:core:testJava8 :core:testJava25` to verify both ends of the supported runtime range. Each target Gradle build compiles classes to Java 8, 17, 21, or 25 as required.
 
-Every target has its own Gradle wrapper. Core and target builds are independent and do not require importing unrelated loader plugins. See `.github/workflows/ci.yml`.
+Every target has its own Gradle wrapper. Core and target builds are independent and do not require importing unrelated loader plugins. Production CI uses the reviewed `Jenkinsfile` and central `NsTut-CICD` library; legacy GitHub Actions workflows are disabled.
 
 ## Releases and publishing
 
-CI tests the core and release tooling, builds all configured native targets, and checks the production jars' metadata, core classes and MIT license. PRs that change release configuration also run the complete release bundle dry run.
+Native Jenkins validates the loader-neutral core, Java 8/25 tests, all 11 loader targets, metadata, core classes and MIT license. The separate credential-free `Jenkinsfile.release` stages a complete source-pinned 12-JAR bundle and SHA256 manifest. The signed release event and protected publisher cutover are still subject to live acceptance; a green build does not publish a version.
 
-Changing root `mod_version` on `main` triggers verified GitHub release assets and optional CurseForge uploads. Configure the repository variable `CURSEFORGE_PROJECT_ID` and secret `CURSEFORGE_API_TOKEN` when the listing is available. GitHub releases work while the project ID is unset; manual publishing on `main` can upload the same version after it is supplied.
+**All publishing secrets belong exclusively to the protected NsTut-CICD host and Azure Key Vault `nstutcommonkv`.** GitHub Actions is disabled. No GitHub Actions repository secret/variable, worker credential or general token may authorize a release. CurseForge project ID `1735096` is public configuration, not a secret. The protected publisher must fetch only its purpose-specific Key Vault credential after exact-source native acceptance.
 
-See [RELEASING.md](RELEASING.md) for version/changelog requirements, dry runs, publish receipts, and all required configuration.
+See [RELEASING.md](RELEASING.md) for the Jenkins cutover status, version/changelog requirements, dry runs, protected Key Vault names, publisher receipts and rollback policy.
 
 MIT licensed.
