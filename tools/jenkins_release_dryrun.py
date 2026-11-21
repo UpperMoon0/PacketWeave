@@ -12,13 +12,13 @@ import release_contract as release
 
 
 def offline_bundle(root: Path, output: Path) -> dict:
-    actual_sha = jenkins.checked_out_sha(root)
-    values = release.verify(root)
     # A failed or unfinished build must never reuse stale dist files.
     if output.exists() or output.is_symlink():
         raise ValueError("Release dist must not already exist before dry-run")
     if output.resolve().parent != root.resolve():
         raise ValueError("Dry-run dist must be directly under this checkout")
+    actual_sha = jenkins.checked_out_sha(root)
+    values = release.verify(root)
     with tempfile.TemporaryDirectory(prefix="packetweave-release-offline-") as temp:
         stage = Path(temp) / "dist"
         manifest = jenkins.bundle_archive(root, stage, actual_sha, values)
