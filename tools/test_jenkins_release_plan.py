@@ -26,7 +26,7 @@ class ReleasePlanTests(unittest.TestCase):
 
     def test_release_job_is_readonly_general_linux(self):
         code = (Path(__file__).resolve().parents[1] / "Jenkinsfile.release").read_text()
-        self.assertIn("agentLabel: 'ci-linux-container'", code)
+        self.assertIn("agentLabel: 'ci-role-general && ci-os-linux && (cloud-1-linux-ci || on-prem-1-linux-ci)'", code)
         self.assertIn("branch: 'main'", code)
         self.assertIn("tools/jenkins_release_plan.py", code)
         self.assertIn("dist/release-manifest.json", code)
