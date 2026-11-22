@@ -1,9 +1,10 @@
 @Library('nstut-ci') _
 
 nstutGradle(
-    // Use the reviewed cloud-1 primary Linux container executor. Optional
-    // Kaggle overflow must not run this source-pinned native migration job.
-    agentLabel: 'ci-linux-container',
+    // Only two independently qualified, credential-free Linux workers may
+    // produce native cutover evidence. on-prem-2 remains general-purpose but
+    // cannot satisfy PacketWeave release/check acceptance.
+    agentLabel: 'ci-role-general && ci-os-linux && (cloud-1-linux-ci || on-prem-1-linux-ci)',
     verify: '''python3 -m unittest discover -s tools -p 'test_*.py' -v
 python3 tools/verify_structure.py
 python3 tools/release_contract.py plan
