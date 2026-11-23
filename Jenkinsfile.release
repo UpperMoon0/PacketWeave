@@ -5,7 +5,7 @@
 // Real publication needs separately validated, protected host-owned authority.
 // The release dry-run uses the same approved acceptance pool as main CI.
 nstutGradle(
-    agentLabel: 'ci-role-general && ci-os-linux && (cloud-1-linux-ci || on-prem-1-linux-ci)',
+    agentLabel: 'ci-role-general && ci-os-linux && ci-linux-container && ci-native-gradle-ready',
     branch: 'main',
     verify: '''python3 -m unittest discover -s tools -p 'test_*.py' -v
 python3 tools/verify_structure.py
