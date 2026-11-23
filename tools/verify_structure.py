@@ -71,6 +71,6 @@ class Verify(unittest.TestCase):
             for prefix in ("net.minecraft.","net.fabricmc.","net.minecraftforge.","net.neoforged.","dev.architectury."):
                 self.assertNotIn(prefix,text,str(file))
     def test_ci_and_readme(self):
-        self.assertTrue((ROOT/".github/workflows/ci.yml").exists())
+        self.assertTrue((ROOT/"Jenkinsfile").is_file())
         self.assertTrue((ROOT/"README.md").exists())
 if __name__=="__main__":unittest.main()
