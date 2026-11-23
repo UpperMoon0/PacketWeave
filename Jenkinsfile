@@ -1,10 +1,10 @@
 @Library('nstut-ci') _
 
 nstutGradle(
-    // Only two independently qualified, credential-free Linux workers may
-    // produce native cutover evidence. on-prem-2 remains general-purpose but
-    // cannot satisfy PacketWeave release/check acceptance.
-    agentLabel: 'ci-role-general && ci-os-linux && (cloud-1-linux-ci || on-prem-1-linux-ci)',
+    // Only administrator-qualified, credential-free Linux general workers may
+    // produce native cutover evidence. Readiness is granted after verified
+    // JDK/toolchain, resource, isolation, and controller policy checks.
+    agentLabel: 'ci-role-general && ci-os-linux && ci-linux-container && ci-native-gradle-ready',
     verify: '''python3 -m unittest discover -s tools -p 'test_*.py' -v
 python3 tools/verify_structure.py
 python3 tools/release_contract.py plan
