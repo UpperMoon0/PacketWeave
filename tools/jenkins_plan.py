@@ -13,9 +13,9 @@ def plan(targets=TARGETS):
         java = int(target['java'])
         if not re.fullmatch(r'[a-z]+-[0-9]+(?:\.[0-9]+)*', name) or java not in (8, 17, 21, 25):
             raise ValueError('Unsupported target or pinned build runtime')
-        # Cold ForgeGradle remapping on bounded Linux workers has exceeded
+        # Cold Loom/ForgeGradle setup on bounded Linux workers has exceeded
         # the shared one-hour stage default. Keep the longer bound narrow.
-        minutes = 120 if name in {'forge-1.16.5', 'forge-1.20.1'} else 60
+        minutes = 120 if name in {'fabric-1.16.5', 'forge-1.16.5', 'forge-1.20.1'} else 60
         result.append({'name': name, 'java': java, 'minutes': minutes,
                        'command': f'(cd targets/{name} && ./gradlew build --no-daemon --max-workers=1 --stacktrace)\n'
                                   f'python3 tools/release_contract.py jar --target {name} --directory targets/{name}/build/libs'})
