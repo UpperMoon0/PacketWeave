@@ -125,7 +125,7 @@ Every target has its own Gradle wrapper. Core and target builds are independent 
 
 ## Releases and publishing
 
-Native Jenkins validates the loader-neutral core, Java 8/25 tests, all 11 loader targets, metadata, core classes and MIT license. The separate credential-free `Jenkinsfile.release` stages a complete source-pinned 12-JAR bundle and SHA256 manifest. The signed release event and protected publisher cutover are still subject to live acceptance; a green build does not publish a version.
+Native Jenkins validates the loader-neutral core, Java 8/25 tests, all 11 loader targets, metadata, core classes and MIT license. The protected release publisher consumes the already-verified native main archive and derives its source-pinned 12-JAR manifest and checksums without rebuilding. The separate credential-free `Jenkinsfile.release` remains a manual dry run. A signed canonical version change and independent authorization are required; a green build alone does not publish a version. Live new-version publication and provider receipts remain pending acceptance.
 
 **All publishing secrets belong exclusively to the protected NsTut-CICD host and Azure Key Vault `nstutcommonkv`.** GitHub Actions is disabled. No GitHub Actions repository secret/variable, worker credential or general token may authorize a release. CurseForge project ID `1735096` is public configuration, not a secret. The protected publisher must fetch only its purpose-specific Key Vault credential after exact-source native acceptance.
 
