@@ -1,6 +1,6 @@
 # PacketWeave — Jenkins release operations
 
-PacketWeave versioning, builds, checks and publishing are being migrated to
+PacketWeave versioning, builds, checks and publishing use
 **Jenkins-only** execution under [KAN-73](https://nstut.atlassian.net/browse/KAN-73).
 GitHub Actions execution is disabled at repository level; never re-enable it,
 depend on its status/artifacts, or store a new publishing secret there.
@@ -11,17 +11,30 @@ The reviewed `Jenkinsfile` uses central `nstut-ci` and a qualified general
 Linux executor to run Python release-contract tests, structure verification,
 the Java 8/25 core tests and all 11 native loader builds. It archives exact
 source evidence and verifies runtime/loader metadata, MIT license and
-production JARs. `Jenkinsfile.release` is a **candidate** credential-free
-13-stage dry run: same 12 build targets followed by full source-pinned
-bundle verification, including `release-manifest.json` and `SHA256SUMS`.
-Neither Jenkinsfile injects publishing secrets or writes GitHub/CurseForge
-releases.
+production JARs. The normal native main archive is the release producer.
+`Jenkinsfile.release` remains available as a credential-free 13-stage
+manual dry run: the same 12 build targets followed by full source-pinned
+bundle verification. Neither Jenkinsfile injects publishing secrets or
+writes GitHub/CurseForge releases.
 
-**Current limitation:** the signed release webhook event route, strict
-Jenkins PR/check authority, protected publisher, receipt persistence,
-rollbacks and physical retirement of legacy workflow YAMLs are not yet
-fully accepted. Do not infer an authorized publication from a successful
-build or from this configuration document.
+## Active cutover
+
+Both legacy Actions workflows have been removed; the repository-level
+Actions disablement and strict App-owned `jenkins/packetweave` required
+check remain in force. The native main and owner-PR matrices have passed
+on qualified Linux runners. The protected release timer verifies the
+latest completed native main result, the signed canonical source event,
+all twelve artifact hashes, immutable version and tag conditions, and
+generates the release manifest/checksums from the already-built bytes.
+A signed version change does **not** trigger a second build matrix.
+
+The protected check reconciler reports an exact-head in-progress check
+for a signed numbered owner-PR build, then completes the same check
+with verified success or failure. It never marks a failed or incomplete
+matrix green. The remaining live acceptance is a genuine new-version
+provider publication and receipt reconciliation, and observation of the
+new check lifecycle on an owner PR. An unchanged version is not eligible
+for publication. A green build alone does not grant release authority.
 
 ## Production credential source of truth
 
@@ -36,7 +49,7 @@ Azure Key Vault is `https://nstutcommonkv.vault.azure.net`.
 | Purpose | Fixed Key Vault secret |
 | --- | --- |
 | CurseForge upload for PacketWeave | `curseforge-api-token` |
-| GitHub tag/release and asset write for PacketWeave only | `packetweave-github-release-token` |
+| GitHub tag/release and asset write for PacketWeave only | Repository-scoped GitHub App installation token |
 
 CurseForge project **1735096** is a public, pinned project ID and **not**
 a credential. The shared CurseForge token has been read successfully from
@@ -66,9 +79,9 @@ an independent, bounded, reviewed central host integration is required.
    `release_type` = `alpha`, `beta`, or `release`.
 3. Run the credential-free Python suites, structure checks, core Java 8/25
    tests, and all native loader targets on approved Jenkins Linux runners.
-4. Only a correctly admitted canonical `main` version-change event or
-   separately authenticated non-dry-run manual request may become a
-   *publication candidate*. All PRs and default manual requests are dry runs.
+4. Only a correctly admitted canonical `main` version-change event may
+   become a *publication candidate*. Owner PRs and manual dry runs never
+   publish. The protected publisher independently checks admission.
 5. Before any provider call, independently verify Jenkins build number,
    trusted exact source/control SHAs, complete native artifacts, release
    manifest, SHA-256 hashes, changelog and immutable `v<version>` tag.
