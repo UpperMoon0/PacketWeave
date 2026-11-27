@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6
+
+- Migrate the complete native loader and shared-core verification matrix to Jenkins.
+- Require exact-source artifact manifests and checksum verification before protected release publication.
+- Allow bounded cold ForgeGradle remapping and qualified Linux worker scheduling.
+- Maintenance release; no new transfer protocol or runtime API changes.
+
 ## 0.1.5
 
 - Add shared receipt-paced outbound sends with a 4 KiB window and connection/global admission limits.
